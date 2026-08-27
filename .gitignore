@@ -12,6 +12,10 @@ packages/
 
 TestResults/
 
+<<<<<<< HEAD
+=======
+appsettings.Development.json
+>>>>>>> Separar configurações de desenvolvimento e produção
 appsettings.Production.json
 
 secrets.json
