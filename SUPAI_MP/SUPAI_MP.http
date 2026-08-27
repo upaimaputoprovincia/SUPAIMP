@@ -1,0 +1,6 @@
+@SUPAI_MP_HostAddress = http://localhost:5070
+
+GET {{SUPAI_MP_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

@@ -1,0 +1,30 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.14.36119.2
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SUPAI_MP", "SUPAI_MP\SUPAI_MP.csproj", "{65C295C7-C8B2-4174-BE5D-D0E38E7B94FB}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Itens de Solução", "Itens de Solução", "{380A7511-A354-6D7A-0CC0-8FA1F1BA7B6C}"
+	ProjectSection(SolutionItems) = preProject
+		Texto.gitignore = Texto.gitignore
+	EndProjectSection
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{65C295C7-C8B2-4174-BE5D-D0E38E7B94FB}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{65C295C7-C8B2-4174-BE5D-D0E38E7B94FB}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{65C295C7-C8B2-4174-BE5D-D0E38E7B94FB}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{65C295C7-C8B2-4174-BE5D-D0E38E7B94FB}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {656EE76A-A144-470F-8127-56C25B147071}
+	EndGlobalSection
+EndGlobal
