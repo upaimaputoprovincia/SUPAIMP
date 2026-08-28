@@ -94,7 +94,33 @@ app.UseSwaggerUI();
 
 app.UseHttpsRedirection();
 
+// ==========================================
+// FOTOGRAFIAS NO VOLUME DO RAILWAY
+// ==========================================
+
+var fotosPath = Environment.GetEnvironmentVariable("FOTOS_PATH");
+
+if (string.IsNullOrWhiteSpace(fotosPath))
+{
+    fotosPath = Path.Combine(
+        Directory.GetCurrentDirectory(),
+        "wwwroot",
+        "fotos");
+}
+
+if (!Directory.Exists(fotosPath))
+{
+    Directory.CreateDirectory(fotosPath);
+}
+
 app.UseStaticFiles();
+
+app.UseStaticFiles(new StaticFileOptions
+{
+    FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(
+        fotosPath),
+    RequestPath = "/fotos"
+});
 
 app.UseAuthentication();
 
