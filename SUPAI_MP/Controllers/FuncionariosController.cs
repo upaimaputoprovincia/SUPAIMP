@@ -128,15 +128,24 @@ namespace supai_mp.Controllers
 
             return Ok(funcionarios);
         }
-        [Authorize]
-        [HttpPost("minha-fotografia")]
-        public async Task<IActionResult> AtualizarMinhaFotografia(
-            IFormFile fotografia)
+       
+[Authorize]
+[HttpPost("minha-fotografia")]
+public async Task<IActionResult> AtualizarMinhaFotografia(
+    IFormFile fotografia)
         {
+            // ==========================================
+            // VALIDAR FOTOGRAFIA
+            // ==========================================
+
             if (fotografia == null || fotografia.Length == 0)
             {
                 return BadRequest("Selecione uma fotografia.");
             }
+
+            // ==========================================
+            // OBTER UTILIZADOR AUTENTICADO
+            // ==========================================
 
             var usuarioIdString =
                 User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
@@ -150,6 +159,10 @@ namespace supai_mp.Controllers
             {
                 return Unauthorized();
             }
+
+            // ==========================================
+            // BUSCAR UTILIZADOR E FUNCIONÁRIO
+            // ==========================================
 
             var usuario = await _context.Usuarios
                 .Include(u => u.Funcionario)
@@ -166,7 +179,10 @@ namespace supai_mp.Controllers
                     "Este utilizador não está associado a um funcionário.");
             }
 
-            // Extensões permitidas
+            // ==========================================
+            // VALIDAR EXTENSÃO
+            // ==========================================
+
             var extensoesPermitidas = new[]
             {
         ".jpg",
@@ -174,8 +190,9 @@ namespace supai_mp.Controllers
         ".png"
     };
 
-            var extensao = Path.GetExtension(
-                fotografia.FileName).ToLowerInvariant();
+            var extensao = Path
+                .GetExtension(fotografia.FileName)
+                .ToLowerInvariant();
 
             if (!extensoesPermitidas.Contains(extensao))
             {
@@ -183,21 +200,40 @@ namespace supai_mp.Controllers
                     "Formato inválido. Use JPG, JPEG ou PNG.");
             }
 
-            // Limite de 5 MB
+            // ==========================================
+            // LIMITE DE 5 MB
+            // ==========================================
+
             if (fotografia.Length > 5 * 1024 * 1024)
             {
                 return BadRequest(
                     "A fotografia não pode ultrapassar 5 MB.");
             }
 
-            var pastaFotos = Path.Combine(
-                Directory.GetCurrentDirectory(),
-                "wwwroot",
-                "fotos");
+            // ==========================================
+            // DEFINIR PASTA DAS FOTOGRAFIAS
+            // ==========================================
 
-            if (!Directory.Exists(pastaFotos))
+            // No Railway:
+            // FOTOS_PATH será configurado para o Volume persistente.
+            //
+            // Localmente:
+            // Se a variável não existir, utiliza wwwroot/fotos.
+
+            var fotosPath = Environment.GetEnvironmentVariable("FOTOS_PATH");
+
+            if (string.IsNullOrWhiteSpace(fotosPath))
             {
-                Directory.CreateDirectory(pastaFotos);
+                fotosPath = Path.Combine(
+                    Directory.GetCurrentDirectory(),
+                    "wwwroot",
+                    "fotos");
+            }
+
+            // Criar pasta caso não exista
+            if (!Directory.Exists(fotosPath))
+            {
+                Directory.CreateDirectory(fotosPath);
             }
 
             // ==========================================
@@ -207,14 +243,12 @@ namespace supai_mp.Controllers
             if (!string.IsNullOrEmpty(
                 usuario.Funcionario.FotografiaUrl))
             {
-                var nomeFotoAntiga =
-                    Path.GetFileName(
-                        usuario.Funcionario.FotografiaUrl);
+                var nomeFotoAntiga = Path.GetFileName(
+                    usuario.Funcionario.FotografiaUrl);
 
-                var caminhoFotoAntiga =
-                    Path.Combine(
-                        pastaFotos,
-                        nomeFotoAntiga);
+                var caminhoFotoAntiga = Path.Combine(
+                    fotosPath,
+                    nomeFotoAntiga);
 
                 if (System.IO.File.Exists(caminhoFotoAntiga))
                 {
@@ -223,7 +257,7 @@ namespace supai_mp.Controllers
             }
 
             // ==========================================
-            // GUARDAR NOVA FOTOGRAFIA
+            // GERAR NOME ÚNICO
             // ==========================================
 
             var nomeArquivo =
@@ -231,8 +265,12 @@ namespace supai_mp.Controllers
 
             var caminhoArquivo =
                 Path.Combine(
-                    pastaFotos,
+                    fotosPath,
                     nomeArquivo);
+
+            // ==========================================
+            // GUARDAR FOTOGRAFIA
+            // ==========================================
 
             using (var stream = new FileStream(
                 caminhoArquivo,
@@ -241,11 +279,18 @@ namespace supai_mp.Controllers
                 await fotografia.CopyToAsync(stream);
             }
 
-            // Atualizar banco de dados
+            // ==========================================
+            // ATUALIZAR BANCO DE DADOS
+            // ==========================================
+
             usuario.Funcionario.FotografiaUrl =
                 $"/fotos/{nomeArquivo}";
 
             await _context.SaveChangesAsync();
+
+            // ==========================================
+            // RESPOSTA
+            // ==========================================
 
             return Ok(new
             {
@@ -256,6 +301,8 @@ namespace supai_mp.Controllers
                     usuario.Funcionario.FotografiaUrl
             });
         }
+
+
         [Authorize]
         [HttpPut("alterar-senha")]
         public async Task<IActionResult> AlterarSenha(
