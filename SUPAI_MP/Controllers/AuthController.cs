@@ -148,32 +148,140 @@ namespace supai_mp.Controllers
         [HttpPost("criar-admin")]
         public async Task<IActionResult> CriarAdmin()
         {
-            var existe = await _context.Usuarios
-                .AnyAsync(u => u.NomeUsuario == "admin");
+            // Procurar o administrador existente
+            var usuario = await _context.Usuarios
+                .FirstOrDefaultAsync(u => u.NomeUsuario == "admin");
 
-            if (existe)
+            // Procurar o funcionário administrador pelo NIP
+            var funcionario = await _context.Funcionarios
+                .FirstOrDefaultAsync(f => f.Nip == "11452654");
+
+            // =========================================================
+            // CASO 1: O admin não existe
+            // =========================================================
+            if (usuario == null)
             {
-                return BadRequest("O administrador já existe.");
+                // Se o funcionário também não existir, criar
+                if (funcionario == null)
+                {
+                    funcionario = new Models.Funcionario
+                    {
+                        NomeCompleto = "MILTON EDUARDO CUMBE",
+                        Nip = "11452654",
+                        Bi = "110500829930I",
+                        Nuit = "1457965",
+                        G = Models.Genero.M,
+                        estado_civil = Models.EstadoCivil.Solteiro,
+                        nivelAcademico = Models.NivelAcademico.Técnico,
+                        grauParentesco = Models.GrauParentesco.MÃE,
+                        Contacto = "840474886",
+                        C_Alternativo = "870843769",
+                        C_Familiar = "849523864",
+                        DataNascimento = new DateTime(1995, 11, 12),
+                        DataIngresso = new DateTime(2021, 10, 27),
+                        LocalTrabalho = "SUPAI_MP",
+                        Bairro = "LUIS CABRAL",
+                        Quarterao_N = "38",
+                        Casa_N = "60",
+                        Categoria = Models.Categoria.GUA,
+                        Funcao = "TECNICO",
+                        Estado = Models.EstadoFuncionario.ACTIVO,
+                        DataCadastro = DateTime.Now
+                    };
+
+                    _context.Funcionarios.Add(funcionario);
+                }
+
+                usuario = new Models.Usuario
+                {
+                    NomeUsuario = "admin",
+                    SenhaHash = BCrypt.Net.BCrypt.HashPassword("Admin@123"),
+                    Perfil = "Administrador",
+                    Ativo = true,
+                    DataCadastro = DateTime.Now,
+                    Funcionario = funcionario
+                };
+
+                _context.Usuarios.Add(usuario);
+
+                await _context.SaveChangesAsync();
+
+                return Ok(new
+                {
+                    mensagem = "Administrador criado e associado ao funcionário com sucesso.",
+                    usuario = usuario.NomeUsuario,
+                    funcionario = funcionario.NomeCompleto
+                });
             }
 
-            var usuario = new Models.Usuario
-            {
-                NomeUsuario = "admin",
-                SenhaHash = BCrypt.Net.BCrypt.HashPassword("Admin@123"),
-                Perfil = "Administrador",
-                Ativo = true,
-                DataCadastro = DateTime.Now
-            };
+            // =========================================================
+            // CASO 2: Admin já existe
+            // =========================================================
 
-            _context.Usuarios.Add(usuario);
+            if (usuario.FuncionarioId != null)
+            {
+                return Ok(new
+                {
+                    mensagem = "O administrador já está associado a um funcionário.",
+                    usuario = usuario.NomeUsuario,
+                    funcionarioId = usuario.FuncionarioId
+                });
+            }
+
+            // =========================================================
+            // CASO 3: Admin existe, mas funcionário não existe
+            // =========================================================
+
+            if (funcionario == null)
+            {
+                funcionario = new Models.Funcionario
+                {
+                    NomeCompleto = "MILTON EDUARDO CUMBE",
+                    Nip = "11452654",
+                    Bi = "110500829930I",
+                    Nuit = "1457965",
+                    G = Models.Genero.M,
+                    estado_civil = Models.EstadoCivil.Solteiro,
+                    nivelAcademico = Models.NivelAcademico.Técnico,
+                    grauParentesco = Models.GrauParentesco.MÃE,
+                    Contacto = "840474886",
+                    C_Alternativo = "870843769",
+                    C_Familiar = "849523864",
+                    DataNascimento = new DateTime(1995, 11, 12),
+                    DataIngresso = new DateTime(2021, 10, 27),
+                    LocalTrabalho = "SUPAI_MP",
+                    Bairro = "LUIS CABRAL",
+                    Quarterao_N = "38",
+                    Casa_N = "60",
+                    Categoria = Models.Categoria.GUA,
+                    Funcao = "TECNICO",
+                    Estado = Models.EstadoFuncionario.ACTIVO,
+                    DataCadastro = DateTime.Now
+                };
+
+                _context.Funcionarios.Add(funcionario);
+
+                await _context.SaveChangesAsync();
+            }
+
+            // =========================================================
+            // Associar o admin ao funcionário
+            // =========================================================
+
+            usuario.FuncionarioId = funcionario.Id;
 
             await _context.SaveChangesAsync();
 
             return Ok(new
             {
-                mensagem = "Administrador criado com sucesso."
+                mensagem = "Administrador associado ao funcionário com sucesso.",
+                usuario = usuario.NomeUsuario,
+                funcionario = funcionario.NomeCompleto,
+                funcionarioId = funcionario.Id
             });
         }
+
+
         [Authorize(Roles = "Administrador")]
         [HttpPut("associar-funcionario")]
         public async Task<IActionResult> AssociarFuncionario(
