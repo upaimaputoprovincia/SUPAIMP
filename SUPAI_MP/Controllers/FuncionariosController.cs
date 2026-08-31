@@ -32,24 +32,58 @@ namespace supai_mp.Controllers
 
             return Ok(funcionarios);
         }
-        // GET: api/Funcionarios/meu-perfil
-        [Authorize]
-        [HttpGet("meu-perfil")]
-        public async Task<IActionResult> MeuPerfil()
+       
+// GET: api/Funcionarios/meu-perfil
+[Authorize]
+[HttpGet("meu-perfil")]
+public async Task<IActionResult> MeuPerfil()
         {
-            var nip = User.FindFirst("Nip")?.Value;
+            // Obter o ID do utilizador autenticado através do JWT
+            var usuarioIdString =
+                User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
 
-            if (string.IsNullOrEmpty(nip))
-                return Unauthorized();
+            if (string.IsNullOrEmpty(usuarioIdString))
+            {
+                return Unauthorized(
+                    "Não foi possível identificar o utilizador autenticado.");
+            }
 
-            var funcionario = await _context.Funcionarios
-                .FirstOrDefaultAsync(f => f.Nip == nip);
+            if (!int.TryParse(usuarioIdString, out int usuarioId))
+            {
+                return Unauthorized(
+                    "Identificador do utilizador inválido.");
+            }
 
-            if (funcionario == null)
-                return NotFound();
+            // Procurar o utilizador e o funcionário associado
+            var usuario = await _context.Usuarios
+                .Include(u => u.Funcionario)
+                .FirstOrDefaultAsync(u => u.Id == usuarioId);
 
-            return Ok(funcionario);
+            if (usuario == null)
+            {
+                return NotFound(
+                    "Utilizador não encontrado.");
+            }
+
+            // Verificar se a conta está ativa
+            if (!usuario.Ativo)
+            {
+                return Unauthorized(
+                    "Este utilizador está inativo.");
+            }
+
+            // Verificar se existe funcionário associado
+            if (usuario.Funcionario == null)
+            {
+                return NotFound(
+                    "Este utilizador não está associado a um funcionário.");
+            }
+
+            // Retornar somente o funcionário associado
+            return Ok(usuario.Funcionario);
         }
+
+
 
         // PUT: api/Funcionarios/meu-perfil
         [Authorize]
