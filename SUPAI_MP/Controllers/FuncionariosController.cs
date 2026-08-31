@@ -422,6 +422,102 @@ public async Task<IActionResult> AtualizarMinhaFotografia(
 
             return Ok(funcionarios);
         }
+        // GET: api/Funcionarios/acessos/5
+        [Authorize(Roles = "Administrador")]
+        [HttpGet("acessos/{id}")]
+        public async Task<IActionResult> GetAcesso(int id)
+        {
+            var usuario = await _context.Usuarios
+                .Include(u => u.Funcionario)
+                .FirstOrDefaultAsync(u => u.Id == id);
+
+            if (usuario == null)
+            {
+                return NotFound(new
+                {
+                    mensagem = "Acesso não encontrado."
+                });
+            }
+
+            return Ok(new
+            {
+                id = usuario.Id,
+                funcionarioId = usuario.FuncionarioId,
+                nomeCompleto = usuario.Funcionario != null
+                    ? usuario.Funcionario.NomeCompleto
+                    : null,
+                nip = usuario.Funcionario != null
+                    ? usuario.Funcionario.Nip
+                    : null,
+                nomeUsuario = usuario.NomeUsuario,
+                perfil = usuario.Perfil,
+                ativo = usuario.Ativo
+            });
+        }
+
+        // PUT: api/Funcionarios/acessos/5
+        [Authorize(Roles = "Administrador")]
+        [HttpPut("acessos/{id}")]
+        public async Task<IActionResult> AtualizarAcesso(
+            int id,
+            EditarAcessoDto dto)
+        {
+            var usuario = await _context.Usuarios
+                .FirstOrDefaultAsync(u => u.Id == id);
+
+            if (usuario == null)
+            {
+                return NotFound(new
+                {
+                    mensagem = "Acesso não encontrado."
+                });
+            }
+
+            if (string.IsNullOrWhiteSpace(dto.NomeUsuario))
+            {
+                return BadRequest(new
+                {
+                    mensagem = "O nome de usuário é obrigatório."
+                });
+            }
+
+            // Verificar se outro usuário já utiliza o mesmo nome
+            var nomeExiste = await _context.Usuarios
+                .AnyAsync(u =>
+                    u.NomeUsuario == dto.NomeUsuario &&
+                    u.Id != id);
+
+            if (nomeExiste)
+            {
+                return BadRequest(new
+                {
+                    mensagem = "O nome de usuário já está em uso."
+                });
+            }
+
+            // Atualizar nome de usuário
+            usuario.NomeUsuario = dto.NomeUsuario;
+
+            // Atualizar perfil
+            if (!string.IsNullOrWhiteSpace(dto.Perfil))
+            {
+                usuario.Perfil = dto.Perfil;
+            }
+
+            // Alterar senha somente se uma nova senha foi informada
+            if (!string.IsNullOrWhiteSpace(dto.NovaSenha))
+            {
+                usuario.SenhaHash =
+                    BCrypt.Net.BCrypt.HashPassword(dto.NovaSenha);
+            }
+
+            await _context.SaveChangesAsync();
+
+            return Ok(new
+            {
+                mensagem = "Dados de acesso atualizados com sucesso."
+            });
+        }
 
         // GET: api/Funcionarios/paginado
         [Authorize(Roles = "Administrador")]
