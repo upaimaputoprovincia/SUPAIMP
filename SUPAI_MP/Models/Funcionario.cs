@@ -179,5 +179,7 @@ namespace supai_mp.Models
         public string? FotografiaUrl { get; set; }
 
         public DateTime DataCadastro { get; set; } = DateTime.Now;
+
+        public ICollection<Ferias> Ferias { get; set; } = new List<Ferias>();
     }
 }

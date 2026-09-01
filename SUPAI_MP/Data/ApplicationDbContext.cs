@@ -12,5 +12,7 @@ namespace supai_mp.Data
         public DbSet<Funcionario> Funcionarios { get; set; }
 
         public DbSet<Usuario> Usuarios { get; set; }
+
+        public DbSet<Ferias> Ferias { get; set; }
     }
 }
