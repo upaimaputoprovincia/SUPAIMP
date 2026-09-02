@@ -85,72 +85,93 @@ namespace supai_mp.Controllers
             });
         }
 
-        // =========================================================
-        // GET: api/Ferias/minhas
-        // Funcionário consulta as suas férias
-        // =========================================================
-        [Authorize(Roles = "Funcionario")]
-        [HttpGet("minhas")]
-        public async Task<IActionResult> MinhasFerias()
+      
+// =========================================================
+// GET: api/Ferias/minhas
+// Funcionário consulta as suas férias
+// =========================================================
+[Authorize(Roles = "Funcionario")]
+[HttpGet("minhas")]
+public async Task<IActionResult> MinhasFerias()
         {
-            var usuarioId = ObterUsuarioId();
+            try
+            {
+                var usuarioId = ObterUsuarioId();
 
-            if (usuarioId == null)
-                return Unauthorized("Utilizador não identificado.");
+                if (usuarioId == null)
+                    return Unauthorized("Utilizador não identificado.");
 
-            var usuario = await _context.Usuarios
-                .Include(u => u.Funcionario)
-                .FirstOrDefaultAsync(u => u.Id == usuarioId);
+                var usuario = await _context.Usuarios
+                    .Include(u => u.Funcionario)
+                    .FirstOrDefaultAsync(u => u.Id == usuarioId);
 
-            if (usuario == null)
-                return NotFound("Utilizador não encontrado.");
+                if (usuario == null)
+                    return NotFound("Utilizador não encontrado.");
 
-            if (!usuario.Ativo)
-                return Unauthorized("Este utilizador está inativo.");
+                if (!usuario.Ativo)
+                    return Unauthorized("Este utilizador está inativo.");
 
-            if (usuario.Funcionario == null)
-                return NotFound("Este utilizador não está associado a um funcionário.");
+                if (usuario.Funcionario == null)
+                    return NotFound(
+                        "Este utilizador não está associado a um funcionário.");
 
-            var funcionarioId = usuario.Funcionario.Id;
+                var funcionarioId = usuario.Funcionario.Id;
 
-            var ferias = await _context.Ferias
-                .Where(f => f.FuncionarioId == funcionarioId)
-                .OrderByDescending(f => f.Ano)
-                .ThenByDescending(f => f.Mes)
-                .Select(f => new
+                var ferias = await _context.Ferias
+                    .Where(f => f.FuncionarioId == funcionarioId)
+                    .OrderByDescending(f => f.Ano)
+                    .ThenByDescending(f => f.Mes)
+                    .Select(f => new
+                    {
+                        id = f.Id,
+
+                        funcionario = new
+                        {
+                            id = funcionarioId,
+                            nomeCompleto = usuario.Funcionario.NomeCompleto,
+                            nip = usuario.Funcionario.Nip
+                        },
+
+                        ano = f.Ano,
+                        mes = f.Mes,
+
+                        mesNome = CultureInfo.CurrentCulture
+                            .DateTimeFormat
+                            .GetMonthName(f.Mes),
+
+                        dataInicio = f.DataInicio,
+                        dataFim = f.DataFim,
+
+                        quantidadeDias =
+                            f.DataInicio.HasValue && f.DataFim.HasValue
+                                ? (int?)(f.DataFim.Value.Date -
+                                          f.DataInicio.Value.Date).Days + 1
+                                : null,
+
+                        estado = f.Estado.ToString(),
+
+                        dataMarcacao = f.DataMarcacao,
+                        dataRegistoInicio = f.DataRegistoInicio,
+                        dataRegistoFim = f.DataRegistoFim,
+
+                        observacao = f.Observacao
+                    })
+                    .ToListAsync();
+
+                return Ok(ferias);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new
                 {
-                    id = f.Id,
-                    funcionarioId = f.FuncionarioId,
-                    nomeCompleto = usuario.Funcionario.NomeCompleto,
-                    nip = usuario.Funcionario.Nip,
-
-                    ano = f.Ano,
-                    mes = f.Mes,
-
-                    mesNome = CultureInfo.CurrentCulture
-                        .DateTimeFormat
-                        .GetMonthName(f.Mes),
-
-                    dataInicio = f.DataInicio,
-                    dataFim = f.DataFim,
-
-                    quantidadeDias =
-                        f.DataInicio.HasValue && f.DataFim.HasValue
-                            ? (int?)(f.DataFim.Value.Date - f.DataInicio.Value.Date).Days + 1
-                            : null,
-
-                    estado = f.Estado.ToString(),
-
-                    dataMarcacao = f.DataMarcacao,
-                    dataRegistoInicio = f.DataRegistoInicio,
-                    dataRegistoFim = f.DataRegistoFim,
-
-                    observacao = f.Observacao
-                })
-                .ToListAsync();
-
-            return Ok(ferias);
+                    mensagem = "Erro interno ao carregar as férias.",
+                    erro = ex.Message,
+                    detalhe = ex.InnerException?.Message
+                });
+            }
         }
+
+
 
         // =========================================================
         // GET: api/Ferias
