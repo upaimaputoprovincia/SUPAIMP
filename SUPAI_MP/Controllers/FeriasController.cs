@@ -141,84 +141,71 @@ namespace supai_mp.Controllers
         // Funcionário consulta as suas férias
         // =========================================================
         [Authorize(Roles = "Funcionario")]
-[HttpGet("minhas")]
-public async Task<IActionResult> MinhasFerias()
+        [HttpGet("minhas")]
+        public async Task<IActionResult> MinhasFerias()
         {
-            try
+            var usuarioId = ObterUsuarioId();
+
+            if (usuarioId == null)
+                return Unauthorized("Utilizador não identificado.");
+
+            var usuario = await _context.Usuarios
+                .Include(u => u.Funcionario)
+                .FirstOrDefaultAsync(u => u.Id == usuarioId);
+
+            if (usuario == null)
+                return NotFound("Utilizador não encontrado.");
+
+            if (!usuario.Ativo)
+                return Unauthorized("Este utilizador está inativo.");
+
+            if (usuario.Funcionario == null)
+                return NotFound(
+                    "Este utilizador não está associado a um funcionário.");
+
+            var funcionarioId = usuario.Funcionario.Id;
+
+            // Buscar os registos sem fazer cálculos de DateTime dentro do SQL
+            var ferias = await _context.Ferias
+                .Where(f => f.FuncionarioId == funcionarioId)
+                .OrderByDescending(f => f.Ano)
+                .ThenByDescending(f => f.Mes)
+                .ToListAsync();
+
+            // Transformar os dados em objetos simples depois de sair da BD
+            var resultado = ferias.Select(f => new
             {
-                var usuarioId = ObterUsuarioId();
+                id = f.Id,
+                funcionarioId = f.FuncionarioId,
+                nomeCompleto = usuario.Funcionario.NomeCompleto,
+                nip = usuario.Funcionario.Nip,
 
-                if (usuarioId == null)
-                    return Unauthorized("Utilizador não identificado.");
+                ano = f.Ano,
+                mes = f.Mes,
 
-                var usuario = await _context.Usuarios
-                    .Include(u => u.Funcionario)
-                    .FirstOrDefaultAsync(u => u.Id == usuarioId);
+                mesNome = System.Globalization.CultureInfo.CurrentCulture
+                    .DateTimeFormat
+                    .GetMonthName(f.Mes),
 
-                if (usuario == null)
-                    return NotFound("Utilizador não encontrado.");
+                dataInicio = f.DataInicio,
+                dataFim = f.DataFim,
 
-                if (!usuario.Ativo)
-                    return Unauthorized("Este utilizador está inativo.");
+                quantidadeDias =
+                    f.DataInicio.HasValue && f.DataFim.HasValue
+                        ? (int?)(f.DataFim.Value.Date -
+                                  f.DataInicio.Value.Date).Days + 1
+                        : null,
 
-                if (usuario.Funcionario == null)
-                    return NotFound(
-                        "Este utilizador não está associado a um funcionário.");
+                estado = f.Estado.ToString(),
 
-                var funcionarioId = usuario.Funcionario.Id;
+                dataMarcacao = f.DataMarcacao,
+                dataRegistoInicio = f.DataRegistoInicio,
+                dataRegistoFim = f.DataRegistoFim,
 
-                var ferias = await _context.Ferias
-                    .Where(f => f.FuncionarioId == funcionarioId)
-                    .OrderByDescending(f => f.Ano)
-                    .ThenByDescending(f => f.Mes)
-                    .Select(f => new
-                    {
-                        id = f.Id,
+                observacao = f.Observacao
+            }).ToList();
 
-                        funcionario = new
-                        {
-                            id = funcionarioId,
-                            nomeCompleto = usuario.Funcionario.NomeCompleto,
-                            nip = usuario.Funcionario.Nip
-                        },
-
-                        ano = f.Ano,
-                        mes = f.Mes,
-
-                        mesNome = CultureInfo.CurrentCulture
-                            .DateTimeFormat
-                            .GetMonthName(f.Mes),
-
-                        dataInicio = f.DataInicio,
-                        dataFim = f.DataFim,
-
-                        quantidadeDias =
-                            f.DataInicio.HasValue && f.DataFim.HasValue
-                                ? (int?)(f.DataFim.Value.Date -
-                                          f.DataInicio.Value.Date).Days + 1
-                                : null,
-
-                        estado = f.Estado.ToString(),
-
-                        dataMarcacao = f.DataMarcacao,
-                        dataRegistoInicio = f.DataRegistoInicio,
-                        dataRegistoFim = f.DataRegistoFim,
-
-                        observacao = f.Observacao
-                    })
-                    .ToListAsync();
-
-                return Ok(ferias);
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, new
-                {
-                    mensagem = "Erro interno ao carregar as férias.",
-                    erro = ex.Message,
-                    detalhe = ex.InnerException?.Message
-                });
-            }
+            return Ok(resultado);
         }
 
 
