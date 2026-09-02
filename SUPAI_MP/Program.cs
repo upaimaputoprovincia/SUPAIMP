@@ -4,6 +4,7 @@ using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using System.Text;
 using supai_mp.Data;
+using System.Security.Claims;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -71,18 +72,29 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     {
         options.TokenValidationParameters = new TokenValidationParameters
         {
+            // Chave de assinatura
             ValidateIssuerSigningKey = true,
             IssuerSigningKey = new SymmetricSecurityKey(
                 Encoding.UTF8.GetBytes(jwtKey)),
 
+            // Issuer
             ValidateIssuer = true,
             ValidIssuer = jwtIssuer,
 
+            // Audience
             ValidateAudience = true,
             ValidAudience = jwtAudience,
 
+            // Expiração
             ValidateLifetime = true,
-            ClockSkew = TimeSpan.Zero
+            ClockSkew = TimeSpan.Zero,
+
+            // IMPORTANTE:
+            // indica ao ASP.NET Core qual claim representa a Role
+            RoleClaimType = ClaimTypes.Role,
+
+            // Indica qual claim representa o utilizador autenticado
+            NameClaimType = ClaimTypes.Name
         };
     });
 
