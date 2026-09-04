@@ -8,54 +8,68 @@ using System.Security.Claims;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Controllers
+// ============================================================
+// CONTROLLERS
+// ============================================================
+
 builder.Services.AddControllers();
 
-// Swagger
+// ============================================================
+// SWAGGER
+// ============================================================
+
 builder.Services.AddEndpointsApiExplorer();
+
 builder.Services.AddSwaggerGen(options =>
 {
-    
-
-    options.AddSecurityDefinition("Bearer", new Microsoft.OpenApi.Models.OpenApiSecurityScheme
+    options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
         Name = "Authorization",
-        Type = Microsoft.OpenApi.Models.SecuritySchemeType.Http,
+        Type = SecuritySchemeType.Http,
         Scheme = "bearer",
         BearerFormat = "JWT",
-        In = Microsoft.OpenApi.Models.ParameterLocation.Header,
+        In = ParameterLocation.Header,
         Description = "Introduza: Bearer {seu_token}"
     });
 
-    options.AddSecurityRequirement(new Microsoft.OpenApi.Models.OpenApiSecurityRequirement
+    options.AddSecurityRequirement(new OpenApiSecurityRequirement
     {
         {
-            new Microsoft.OpenApi.Models.OpenApiSecurityScheme
+            new OpenApiSecurityScheme
             {
-                Reference = new Microsoft.OpenApi.Models.OpenApiReference
+                Reference = new OpenApiReference
                 {
-                    Type = Microsoft.OpenApi.Models.ReferenceType.SecurityScheme,
+                    Type = ReferenceType.SecurityScheme,
                     Id = "Bearer"
                 }
             },
             Array.Empty<string>()
         }
     });
-    
 });
 
-// MySQL + Entity Framework Core
+// ============================================================
+// MYSQL + ENTITY FRAMEWORK CORE
+// ============================================================
+
+var connectionString =
+    builder.Configuration.GetConnectionString("DefaultConnection");
+
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseMySql(
-        builder.Configuration.GetConnectionString("DefaultConnection"),
-        ServerVersion.AutoDetect(
-            builder.Configuration.GetConnectionString("DefaultConnection")
-        )
+        connectionString,
+        ServerVersion.AutoDetect(connectionString)
     ));
 
-// Autorização
-// Autorização
+// ============================================================
+// AUTORIZAÇÃO
+// ============================================================
+
 builder.Services.AddAuthorization();
+
+// ============================================================
+// JWT
+// ============================================================
 
 var jwtKey = builder.Configuration["Jwt:Key"];
 var jwtIssuer = builder.Configuration["Jwt:Issuer"];
@@ -64,57 +78,76 @@ var jwtAudience = builder.Configuration["Jwt:Audience"];
 if (string.IsNullOrWhiteSpace(jwtKey))
 {
     throw new InvalidOperationException(
-        "A variável Jwt:Key não foi encontrada. Verifique a variável Jwt__Key no Railway.");
+        "A variável Jwt:Key não foi encontrada. " +
+        "Verifique a variável Jwt__Key no Railway.");
 }
 
-builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+builder.Services.AddAuthentication(
+    JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
-        options.TokenValidationParameters = new TokenValidationParameters
-        {
-            // Chave de assinatura
-            ValidateIssuerSigningKey = true,
-            IssuerSigningKey = new SymmetricSecurityKey(
-                Encoding.UTF8.GetBytes(jwtKey)),
+        options.TokenValidationParameters =
+            new TokenValidationParameters
+            {
+                // Chave de assinatura
+                ValidateIssuerSigningKey = true,
 
-            // Issuer
-            ValidateIssuer = true,
-            ValidIssuer = jwtIssuer,
+                IssuerSigningKey =
+                    new SymmetricSecurityKey(
+                        Encoding.UTF8.GetBytes(jwtKey)),
 
-            // Audience
-            ValidateAudience = true,
-            ValidAudience = jwtAudience,
+                // Issuer
+                ValidateIssuer = true,
+                ValidIssuer = jwtIssuer,
 
-            // Expiração
-            ValidateLifetime = true,
-            ClockSkew = TimeSpan.Zero,
+                // Audience
+                ValidateAudience = true,
+                ValidAudience = jwtAudience,
 
-            // IMPORTANTE:
-            // indica ao ASP.NET Core qual claim representa a Role
-            RoleClaimType = ClaimTypes.Role,
+                // Expiração
+                ValidateLifetime = true,
+                ClockSkew = TimeSpan.Zero,
 
-            // Indica qual claim representa o utilizador autenticado
-            NameClaimType = ClaimTypes.Name
-        };
+                // Role
+                RoleClaimType = ClaimTypes.Role,
+
+                // Utilizador autenticado
+                NameClaimType = ClaimTypes.Name
+            };
     });
 
 var app = builder.Build();
 
+// ============================================================
+// MIGRATIONS + SEED
+// ============================================================
+
 using (var scope = app.Services.CreateScope())
 {
-    var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-    db.Database.Migrate();
+    var db = scope.ServiceProvider
+        .GetRequiredService<ApplicationDbContext>();
+
+    await db.Database.MigrateAsync();
+
+    await OrganizacaoSeed.SeedAsync(db);
 }
 
-// Swagger
+// ============================================================
+// SWAGGER
+// ============================================================
+
 app.UseSwagger();
 app.UseSwaggerUI();
 
+// ============================================================
+// HTTPS
+// ============================================================
+
 app.UseHttpsRedirection();
 
-// ==========================================
+// ============================================================
 // FOTOGRAFIAS NO VOLUME DO RAILWAY
-// ==========================================
+// ============================================================
 
 var fotosPath = Environment.GetEnvironmentVariable("FOTOS_PATH");
 
@@ -135,16 +168,24 @@ app.UseStaticFiles();
 
 app.UseStaticFiles(new StaticFileOptions
 {
-    FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(
-        fotosPath),
+    FileProvider =
+        new Microsoft.Extensions.FileProviders.PhysicalFileProvider(
+            fotosPath),
+
     RequestPath = "/fotos"
 });
 
-app.UseAuthentication();
+// ============================================================
+// AUTENTICAÇÃO E AUTORIZAÇÃO
+// ============================================================
 
+app.UseAuthentication();
 app.UseAuthorization();
 
-// Mapear Controllers
+// ============================================================
+// CONTROLLERS
+// ============================================================
+
 app.MapControllers();
 
 app.Run();

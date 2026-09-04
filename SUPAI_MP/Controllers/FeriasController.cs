@@ -85,56 +85,7 @@ namespace supai_mp.Controllers
             });
         }
 
-        [Authorize]
-        [HttpGet("diagnostico-tabela")]
-        public async Task<IActionResult> DiagnosticoTabela()
-        {
-            try
-            {
-                var resultado = new List<object>();
-
-                using var connection = _context.Database.GetDbConnection();
-
-                await connection.OpenAsync();
-
-                using var command = connection.CreateCommand();
-
-                command.CommandText = @"
-            SELECT 
-                COLUMN_NAME,
-                DATA_TYPE,
-                COLUMN_TYPE,
-                IS_NULLABLE
-            FROM INFORMATION_SCHEMA.COLUMNS
-            WHERE TABLE_SCHEMA = DATABASE()
-              AND TABLE_NAME = 'Ferias'
-            ORDER BY ORDINAL_POSITION;
-        ";
-
-                using var reader = await command.ExecuteReaderAsync();
-
-                while (await reader.ReadAsync())
-                {
-                    resultado.Add(new
-                    {
-                        coluna = reader["COLUMN_NAME"]?.ToString(),
-                        tipo = reader["DATA_TYPE"]?.ToString(),
-                        tipoCompleto = reader["COLUMN_TYPE"]?.ToString(),
-                        permiteNulo = reader["IS_NULLABLE"]?.ToString()
-                    });
-                }
-
-                return Ok(resultado);
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, new
-                {
-                    mensagem = "Erro ao consultar a estrutura da tabela Ferias.",
-                    erro = ex.Message
-                });
-            }
-        }
+       
 
         // =========================================================
         // GET: api/Ferias/minhas

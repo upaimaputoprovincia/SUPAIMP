@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using supai_mp.Data;
 
@@ -11,9 +12,11 @@ using supai_mp.Data;
 namespace SUPAI_MP.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260902153711_AdicionarEstruturaOrganizacional")]
+    partial class AdicionarEstruturaOrganizacional
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -190,17 +193,12 @@ namespace SUPAI_MP.Migrations
                         .HasMaxLength(150)
                         .HasColumnType("varchar(150)");
 
-                    b.Property<int?>("SectorId")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("UnidadeOperacionalId")
+                    b.Property<int>("SectorId")
                         .HasColumnType("int");
 
                     b.HasKey("Id");
 
                     b.HasIndex("SectorId");
-
-                    b.HasIndex("UnidadeOperacionalId");
 
                     b.ToTable("Equipas");
                 });
@@ -294,7 +292,7 @@ namespace SUPAI_MP.Migrations
                     b.Property<int?>("EquipaId")
                         .HasColumnType("int");
 
-                    b.Property<int>("FuncaoOperacionalId")
+                    b.Property<int?>("FuncaoOperacionalId")
                         .HasColumnType("int");
 
                     b.Property<int>("FuncionarioId")
@@ -320,9 +318,6 @@ namespace SUPAI_MP.Migrations
                     b.Property<int?>("TipoTurnoId")
                         .HasColumnType("int");
 
-                    b.Property<int?>("UnidadeOperacionalId")
-                        .HasColumnType("int");
-
                     b.HasKey("Id");
 
                     b.HasIndex("EquipaId");
@@ -338,8 +333,6 @@ namespace SUPAI_MP.Migrations
                     b.HasIndex("SectorId");
 
                     b.HasIndex("TipoTurnoId");
-
-                    b.HasIndex("UnidadeOperacionalId");
 
                     b.ToTable("LotacoesFuncionarios");
                 });
@@ -382,9 +375,6 @@ namespace SUPAI_MP.Migrations
                     b.Property<int?>("SectorId")
                         .HasColumnType("int");
 
-                    b.Property<int?>("UnidadeOperacionalId")
-                        .HasColumnType("int");
-
                     b.HasKey("Id");
 
                     b.HasIndex("Codigo")
@@ -393,8 +383,6 @@ namespace SUPAI_MP.Migrations
                     b.HasIndex("SeccaoId");
 
                     b.HasIndex("SectorId");
-
-                    b.HasIndex("UnidadeOperacionalId");
 
                     b.ToTable("Postos");
                 });
@@ -497,47 +485,6 @@ namespace SUPAI_MP.Migrations
                     b.ToTable("TiposTurno");
                 });
 
-            modelBuilder.Entity("supai_mp.Models.Organizacao.UnidadeOperacional", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<bool>("Ativo")
-                        .HasColumnType("tinyint(1)");
-
-                    b.Property<DateTime>("DataCadastro")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<string>("Descricao")
-                        .HasMaxLength(500)
-                        .HasColumnType("varchar(500)");
-
-                    b.Property<string>("Nome")
-                        .IsRequired()
-                        .HasMaxLength(150)
-                        .HasColumnType("varchar(150)");
-
-                    b.Property<int>("SeccaoId")
-                        .HasColumnType("int");
-
-                    b.Property<int>("Tipo")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("UnidadePaiId")
-                        .HasColumnType("int");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("SeccaoId");
-
-                    b.HasIndex("UnidadePaiId");
-
-                    b.ToTable("UnidadesOperacionais");
-                });
-
             modelBuilder.Entity("supai_mp.Models.Usuario", b =>
                 {
                     b.Property<int>("Id")
@@ -590,16 +537,10 @@ namespace SUPAI_MP.Migrations
                     b.HasOne("supai_mp.Models.Organizacao.Sector", "Sector")
                         .WithMany("Equipas")
                         .HasForeignKey("SectorId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.HasOne("supai_mp.Models.Organizacao.UnidadeOperacional", "UnidadeOperacional")
-                        .WithMany("Equipas")
-                        .HasForeignKey("UnidadeOperacionalId")
-                        .OnDelete(DeleteBehavior.Restrict);
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
 
                     b.Navigation("Sector");
-
-                    b.Navigation("UnidadeOperacional");
                 });
 
             modelBuilder.Entity("supai_mp.Models.Organizacao.Escala", b =>
@@ -667,11 +608,6 @@ namespace SUPAI_MP.Migrations
                         .HasForeignKey("TipoTurnoId")
                         .OnDelete(DeleteBehavior.Restrict);
 
-                    b.HasOne("supai_mp.Models.Organizacao.UnidadeOperacional", "UnidadeOperacional")
-                        .WithMany("Lotacoes")
-                        .HasForeignKey("UnidadeOperacionalId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
                     b.Navigation("Equipa");
 
                     b.Navigation("FuncaoOperacional");
@@ -685,8 +621,6 @@ namespace SUPAI_MP.Migrations
                     b.Navigation("Sector");
 
                     b.Navigation("TipoTurno");
-
-                    b.Navigation("UnidadeOperacional");
                 });
 
             modelBuilder.Entity("supai_mp.Models.Organizacao.Posto", b =>
@@ -702,16 +636,9 @@ namespace SUPAI_MP.Migrations
                         .HasForeignKey("SectorId")
                         .OnDelete(DeleteBehavior.Restrict);
 
-                    b.HasOne("supai_mp.Models.Organizacao.UnidadeOperacional", "UnidadeOperacional")
-                        .WithMany("Postos")
-                        .HasForeignKey("UnidadeOperacionalId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
                     b.Navigation("Seccao");
 
                     b.Navigation("Sector");
-
-                    b.Navigation("UnidadeOperacional");
                 });
 
             modelBuilder.Entity("supai_mp.Models.Organizacao.Sector", b =>
@@ -723,24 +650,6 @@ namespace SUPAI_MP.Migrations
                         .IsRequired();
 
                     b.Navigation("Seccao");
-                });
-
-            modelBuilder.Entity("supai_mp.Models.Organizacao.UnidadeOperacional", b =>
-                {
-                    b.HasOne("supai_mp.Models.Organizacao.Seccao", "Seccao")
-                        .WithMany()
-                        .HasForeignKey("SeccaoId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("supai_mp.Models.Organizacao.UnidadeOperacional", "UnidadePai")
-                        .WithMany("UnidadesFilhas")
-                        .HasForeignKey("UnidadePaiId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.Navigation("Seccao");
-
-                    b.Navigation("UnidadePai");
                 });
 
             modelBuilder.Entity("supai_mp.Models.Usuario", b =>
@@ -788,17 +697,6 @@ namespace SUPAI_MP.Migrations
                     b.Navigation("Lotacoes");
 
                     b.Navigation("Postos");
-                });
-
-            modelBuilder.Entity("supai_mp.Models.Organizacao.UnidadeOperacional", b =>
-                {
-                    b.Navigation("Equipas");
-
-                    b.Navigation("Lotacoes");
-
-                    b.Navigation("Postos");
-
-                    b.Navigation("UnidadesFilhas");
                 });
 #pragma warning restore 612, 618
         }
