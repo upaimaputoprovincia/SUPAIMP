@@ -26,6 +26,7 @@ namespace supai_mp.Data
         public DbSet<LotacaoFuncionario> LotacoesFuncionarios { get; set; }
         public DbSet<Escala> Escalas { get; set; }
         public DbSet<UnidadeOperacional> UnidadesOperacionais { get; set; }
+        public DbSet<GrupoEscala> GruposEscala { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -219,10 +220,10 @@ namespace supai_mp.Data
                 .IsUnique();
 
             modelBuilder.Entity<Escala>()
-    .HasOne(e => e.Funcionario)
-    .WithMany()
-    .HasForeignKey(e => e.FuncionarioId)
-    .OnDelete(DeleteBehavior.Restrict);
+            .HasOne(e => e.Funcionario)
+            .WithMany()
+            .HasForeignKey(e => e.FuncionarioId)
+            .OnDelete(DeleteBehavior.Restrict);
 
             modelBuilder.Entity<Escala>()
                 .HasOne(e => e.TipoTurno)
@@ -273,6 +274,37 @@ namespace supai_mp.Data
                 .WithMany(u => u.Lotacoes)
                 .HasForeignKey(l => l.UnidadeOperacionalId)
                 .OnDelete(DeleteBehavior.Restrict);
+
+            // GRUPO DE ESCALA -> UNIDADE OPERACIONAL
+            modelBuilder.Entity<GrupoEscala>()
+                .HasOne(g => g.UnidadeOperacional)
+                .WithMany()
+                .HasForeignKey(g => g.UnidadeOperacionalId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // GRUPO DE ESCALA -> EQUIPA
+            modelBuilder.Entity<GrupoEscala>()
+                .HasOne(g => g.Equipa)
+                .WithMany()
+                .HasForeignKey(g => g.EquipaId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // GRUPO DE ESCALA -> TIPO DE TURNO
+            modelBuilder.Entity<GrupoEscala>()
+                .HasOne(g => g.TipoTurno)
+                .WithMany()
+                .HasForeignKey(g => g.TipoTurnoId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // Evita duplicar a mesma ordem de rotação
+            // dentro da mesma unidade operacional.
+            modelBuilder.Entity<GrupoEscala>()
+                .HasIndex(g => new
+                {
+                    g.UnidadeOperacionalId,
+                    g.OrdemRotacao
+                })
+                .IsUnique();
         }
     }
 }
