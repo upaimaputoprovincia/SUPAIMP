@@ -2,6 +2,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using supai_mp.Data;
+using supai_mp.Models;
 using supai_mp.Models.Organizacao;
 
 namespace supai_mp.Controllers
@@ -19,78 +20,96 @@ namespace supai_mp.Controllers
         }
 
         // ============================================================
-        // DTO DE ENTRADA
+        // DTO - CRIAR / EDITAR ESCALA
         // ============================================================
+
         public class EscalaDto
         {
             public int FuncionarioId { get; set; }
+
             public DateTime Data { get; set; }
+
             public TimeSpan HoraInicio { get; set; }
+
             public TimeSpan HoraFim { get; set; }
+
             public int TipoTurnoId { get; set; }
+
             public int? PostoId { get; set; }
+
             public string? Observacao { get; set; }
         }
 
         // ============================================================
-        // DTO DE RESPOSTA
+        // DTO - RESPOSTA
         // ============================================================
+
         public class EscalaRespostaDto
         {
             public int Id { get; set; }
 
-            // --------------------------------------------------------
-            // FUNCIONÁRIO
-            // --------------------------------------------------------
             public int FuncionarioId { get; set; }
+
             public string? Funcionario { get; set; }
 
-            // --------------------------------------------------------
-            // DATA E HORÁRIO
-            // --------------------------------------------------------
+            public string? Nip { get; set; }
+
             public DateTime Data { get; set; }
 
             public TimeSpan HoraInicio { get; set; }
+
             public TimeSpan HoraFim { get; set; }
 
-            // --------------------------------------------------------
-            // TURNO
-            // --------------------------------------------------------
             public int TipoTurnoId { get; set; }
+
             public string? TipoTurno { get; set; }
 
-            // --------------------------------------------------------
-            // POSTO
-            // --------------------------------------------------------
             public int? PostoId { get; set; }
+
             public string? Posto { get; set; }
 
-            // --------------------------------------------------------
-            // OBSERVAÇÃO
-            // --------------------------------------------------------
             public string? Observacao { get; set; }
 
-            // ========================================================
-            // ORGANIZAÇÃO / LOTAÇÃO ATUAL
-            // ========================================================
-
             public int? SeccaoId { get; set; }
+
             public string? Seccao { get; set; }
 
             public int? UnidadeOperacionalId { get; set; }
+
             public string? UnidadeOperacional { get; set; }
 
             public int? EquipaId { get; set; }
+
             public string? Equipa { get; set; }
 
             public int? FuncaoOperacionalId { get; set; }
+
             public string? FuncaoOperacional { get; set; }
         }
 
         // ============================================================
-        // MÉTODO AUXILIAR
-        // Converte Escala + Lotação para DTO seguro
+        // DTO - GERAÇÃO AUTOMÁTICA
         // ============================================================
+
+        public class GerarEscalaDto
+        {
+            public int UnidadeOperacionalId { get; set; }
+
+            public DateTime Data { get; set; }
+
+            public TimeSpan HoraInicio { get; set; }
+
+            public int? TipoTurnoId { get; set; }
+
+            public int? PostoId { get; set; }
+
+            public string? Observacao { get; set; }
+        }
+
+        // ============================================================
+        // CONVERSÃO PARA DTO
+        // ============================================================
+
         private static EscalaRespostaDto ParaDto(
             Escala escala,
             LotacaoFuncionario? lotacao)
@@ -99,74 +118,69 @@ namespace supai_mp.Controllers
             {
                 Id = escala.Id,
 
-                // Funcionário
                 FuncionarioId = escala.FuncionarioId,
+
                 Funcionario = escala.Funcionario?.NomeCompleto,
 
-                // Data
+                Nip = escala.Funcionario?.Nip,
+
                 Data = escala.Data,
 
-                // Horário
                 HoraInicio = escala.HoraInicio,
+
                 HoraFim = escala.HoraFim,
 
-                // Turno
                 TipoTurnoId = escala.TipoTurnoId,
+
                 TipoTurno = escala.TipoTurno?.Nome,
 
-                // Posto
                 PostoId = escala.PostoId,
+
                 Posto = escala.Posto?.Nome,
 
-                // Observação
                 Observacao = escala.Observacao,
 
-                // ====================================================
-                // LOTAÇÃO ATUAL
-                // ====================================================
-
                 SeccaoId = lotacao?.SeccaoId,
+
                 Seccao = lotacao?.Seccao?.Nome,
 
                 UnidadeOperacionalId = lotacao?.UnidadeOperacionalId,
+
                 UnidadeOperacional = lotacao?.UnidadeOperacional?.Nome,
 
                 EquipaId = lotacao?.EquipaId,
+
                 Equipa = lotacao?.Equipa?.Nome,
 
                 FuncaoOperacionalId = lotacao?.FuncaoOperacionalId,
+
                 FuncaoOperacional = lotacao?.FuncaoOperacional?.Nome
             };
         }
 
         // ============================================================
         // CARREGAR LOTAÇÕES ATIVAS
-        // Evita fazer uma consulta à BD para cada escala
         // ============================================================
+
         private async Task<Dictionary<int, LotacaoFuncionario>>
-            CarregarLotacoesAsync(IEnumerable<int> funcionarioIds)
+            CarregarLotacoesAsync(IEnumerable<int> funcionariosIds)
         {
-            var ids = funcionarioIds
+            var ids = funcionariosIds
                 .Distinct()
                 .ToList();
 
             if (!ids.Any())
-            {
                 return new Dictionary<int, LotacaoFuncionario>();
-            }
 
             var lotacoes = await _context.LotacoesFuncionarios
-                .AsNoTracking()
-
                 .Include(l => l.Seccao)
                 .Include(l => l.UnidadeOperacional)
                 .Include(l => l.Equipa)
                 .Include(l => l.FuncaoOperacional)
-
+                .Include(l => l.TipoTurno)
                 .Where(l =>
-                    ids.Contains(l.FuncionarioId) &&
-                    l.Ativo)
-
+                    l.Ativo &&
+                    ids.Contains(l.FuncionarioId))
                 .OrderByDescending(l => l.DataInicio)
                 .ToListAsync();
 
@@ -178,274 +192,456 @@ namespace supai_mp.Controllers
         }
 
         // ============================================================
-        // GET: api/Escalas
+        // CALCULAR DATA/HORA FINAL
         // ============================================================
+
+        private static DateTime CalcularFim(
+            DateTime data,
+            TimeSpan horaInicio,
+            TimeSpan horaFim)
+        {
+            var inicio = data.Date + horaInicio;
+
+            var fim = data.Date + horaFim;
+
+            // Se terminar antes ou exatamente na hora de início,
+            // significa que terminou no dia seguinte.
+            if (fim <= inicio)
+            {
+                fim = fim.AddDays(1);
+            }
+
+            return fim;
+        }
+
+        // ============================================================
+        // VALIDAR INTERVALO
+        // ============================================================
+
+        private static bool ExisteConflito(
+            DateTime dataExistente,
+            TimeSpan inicioExistente,
+            TimeSpan fimExistente,
+            DateTime novaData,
+            TimeSpan novoInicio,
+            TimeSpan novoFim)
+        {
+            var inicioExistenteDt =
+                dataExistente.Date + inicioExistente;
+
+            var fimExistenteDt =
+                CalcularFim(
+                    dataExistente,
+                    inicioExistente,
+                    fimExistente);
+
+            var novoInicioDt =
+                novaData.Date + novoInicio;
+
+            var novoFimDt =
+                CalcularFim(
+                    novaData,
+                    novoInicio,
+                    novoFim);
+
+            return
+                inicioExistenteDt < novoFimDt &&
+                fimExistenteDt > novoInicioDt;
+        }
+
+        // ============================================================
+        // VALIDAR DADOS DA ESCALA
+        // ============================================================
+
+        private async Task<(bool Valido, string? Erro,
+            Funcionario? Funcionario,
+            TipoTurno? TipoTurno,
+            LotacaoFuncionario? Lotacao,
+            Posto? Posto)>
+            ValidarEscalaAsync(EscalaDto dados)
+        {
+            var funcionario = await _context.Funcionarios
+                .FirstOrDefaultAsync(f =>
+                    f.Id == dados.FuncionarioId);
+
+            if (funcionario == null)
+            {
+                return (
+                    false,
+                    "Funcionário não encontrado.",
+                    null,
+                    null,
+                    null,
+                    null);
+            }
+
+            var turno = await _context.TiposTurno
+                .FirstOrDefaultAsync(t =>
+                    t.Id == dados.TipoTurnoId &&
+                    t.Ativo);
+
+            if (turno == null)
+            {
+                return (
+                    false,
+                    "Tipo de turno não encontrado ou está inativo.",
+                    funcionario,
+                    null,
+                    null,
+                    null);
+            }
+
+            var lotacao = await _context.LotacoesFuncionarios
+                .Include(l => l.Seccao)
+                .Include(l => l.UnidadeOperacional)
+                .Include(l => l.Equipa)
+                .Include(l => l.FuncaoOperacional)
+                .Include(l => l.TipoTurno)
+                .Where(l =>
+                    l.FuncionarioId == dados.FuncionarioId &&
+                    l.Ativo)
+                .OrderByDescending(l => l.DataInicio)
+                .FirstOrDefaultAsync();
+
+            if (lotacao == null)
+            {
+                return (
+                    false,
+                    "O funcionário não possui uma lotação ativa. Faça primeiro o enquadramento do funcionário.",
+                    funcionario,
+                    turno,
+                    null,
+                    null);
+            }
+
+            // --------------------------------------------------------
+            // VALIDAR TURNO DA LOTAÇÃO
+            // --------------------------------------------------------
+
+            if (lotacao.TipoTurnoId.HasValue &&
+                lotacao.TipoTurnoId.Value != dados.TipoTurnoId)
+            {
+                return (
+                    false,
+                    $"O funcionário está lotado no regime '{lotacao.TipoTurno?.Nome}', mas a escala utiliza o regime '{turno.Nome}'.",
+                    funcionario,
+                    turno,
+                    lotacao,
+                    null);
+            }
+
+            // --------------------------------------------------------
+            // VALIDAR POSTO
+            // --------------------------------------------------------
+
+            Posto? posto = null;
+
+            if (dados.PostoId.HasValue)
+            {
+                posto = await _context.Postos
+                    .FirstOrDefaultAsync(p =>
+                        p.Id == dados.PostoId.Value &&
+                        p.Ativo);
+
+                if (posto == null)
+                {
+                    return (
+                        false,
+                        "O posto indicado não existe ou está inativo.",
+                        funcionario,
+                        turno,
+                        lotacao,
+                        null);
+                }
+
+                if (posto.UnidadeOperacionalId.HasValue &&
+                    lotacao.UnidadeOperacionalId !=
+                    posto.UnidadeOperacionalId)
+                {
+                    return (
+                        false,
+                        "O posto selecionado não pertence à mesma unidade operacional da lotação do funcionário.",
+                        funcionario,
+                        turno,
+                        lotacao,
+                        posto);
+                }
+            }
+
+            // --------------------------------------------------------
+            // VALIDAR HORAS
+            // --------------------------------------------------------
+
+            var inicio = dados.HoraInicio;
+
+            var fim = dados.HoraFim;
+
+            if (inicio < TimeSpan.Zero ||
+                inicio >= TimeSpan.FromDays(1))
+            {
+                return (
+                    false,
+                    "A hora de início é inválida.",
+                    funcionario,
+                    turno,
+                    lotacao,
+                    posto);
+            }
+
+            if (fim < TimeSpan.Zero ||
+                fim >= TimeSpan.FromDays(1))
+            {
+                return (
+                    false,
+                    "A hora de fim é inválida.",
+                    funcionario,
+                    turno,
+                    lotacao,
+                    posto);
+            }
+
+            // Para turnos de 24 horas,
+            // 08:00 -> 08:00 significa 24 horas.
+            if (inicio == fim &&
+                turno.HorasTrabalho < 24)
+            {
+                return (
+                    false,
+                    "A hora de início e a hora de fim não podem ser iguais para este tipo de turno.",
+                    funcionario,
+                    turno,
+                    lotacao,
+                    posto);
+            }
+
+            // --------------------------------------------------------
+            // VALIDAR DURAÇÃO
+            // --------------------------------------------------------
+
+            var inicioDt =
+                dados.Data.Date + inicio;
+
+            var fimDt =
+                CalcularFim(
+                    dados.Data,
+                    inicio,
+                    fim);
+
+            var duracao =
+                fimDt - inicioDt;
+
+            if (duracao.TotalHours <= 0)
+            {
+                return (
+                    false,
+                    "A duração da escala é inválida.",
+                    funcionario,
+                    turno,
+                    lotacao,
+                    posto);
+            }
+
+            if (duracao.TotalHours >
+                turno.HorasTrabalho + 0.01)
+            {
+                return (
+                    false,
+                    $"A duração da escala ({duracao.TotalHours:0.#}h) ultrapassa as {turno.HorasTrabalho} horas previstas no turno.",
+                    funcionario,
+                    turno,
+                    lotacao,
+                    posto);
+            }
+
+            return (
+                true,
+                null,
+                funcionario,
+                turno,
+                lotacao,
+                posto);
+        }
+
+        // ============================================================
+        // GET - TODAS AS ESCALAS
+        // ============================================================
+
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<EscalaRespostaDto>>>
-            GetEscalas()
+        public async Task<ActionResult<IEnumerable<EscalaRespostaDto>>> GetEscalas()
         {
             var escalas = await _context.Escalas
-                .AsNoTracking()
                 .Include(e => e.Funcionario)
                 .Include(e => e.TipoTurno)
                 .Include(e => e.Posto)
-                .OrderByDescending(e => e.Data)
+                .OrderBy(e => e.Data)
                 .ThenBy(e => e.HoraInicio)
                 .ToListAsync();
 
-            var lotacoes = await CarregarLotacoesAsync(
-                escalas.Select(e => e.FuncionarioId));
+            var lotacoes =
+                await CarregarLotacoesAsync(
+                    escalas.Select(e => e.FuncionarioId));
 
             var resultado = escalas
                 .Select(e =>
-                    lotacoes.TryGetValue(
-                        e.FuncionarioId,
-                        out var lotacao)
-                            ? ParaDto(e, lotacao)
-                            : ParaDto(e, null))
+                    ParaDto(
+                        e,
+                        lotacoes.TryGetValue(
+                            e.FuncionarioId,
+                            out var l)
+                            ? l
+                            : null))
                 .ToList();
 
             return Ok(resultado);
         }
 
         // ============================================================
-        // GET: api/Escalas/5
+        // GET - POR ID
         // ============================================================
+
         [HttpGet("{id:int}")]
-        public async Task<ActionResult<EscalaRespostaDto>>
-            GetEscala(int id)
+        public async Task<ActionResult<EscalaRespostaDto>> GetEscala(int id)
         {
             var escala = await _context.Escalas
-                .AsNoTracking()
                 .Include(e => e.Funcionario)
                 .Include(e => e.TipoTurno)
                 .Include(e => e.Posto)
                 .FirstOrDefaultAsync(e => e.Id == id);
 
             if (escala == null)
-            {
                 return NotFound(new
                 {
                     mensagem = "Escala não encontrada."
                 });
-            }
 
-            var lotacoes = await CarregarLotacoesAsync(
-                new[] { escala.FuncionarioId });
+            var lotacao =
+                await _context.LotacoesFuncionarios
+                    .Include(l => l.Seccao)
+                    .Include(l => l.UnidadeOperacional)
+                    .Include(l => l.Equipa)
+                    .Include(l => l.FuncaoOperacional)
+                    .FirstOrDefaultAsync(l =>
+                        l.FuncionarioId ==
+                        escala.FuncionarioId &&
+                        l.Ativo);
 
-            lotacoes.TryGetValue(
-                escala.FuncionarioId,
-                out var lotacao);
-
-            return Ok(ParaDto(escala, lotacao));
+            return Ok(
+                ParaDto(
+                    escala,
+                    lotacao));
         }
 
         // ============================================================
-        // GET: api/Escalas/data/2026-09-04
+        // GET - POR DATA
         // ============================================================
+
         [HttpGet("data/{data}")]
         public async Task<ActionResult<IEnumerable<EscalaRespostaDto>>>
             GetPorData(DateTime data)
         {
-            var inicio = data.Date;
-            var fim = inicio.AddDays(1);
+            var dia = data.Date;
 
             var escalas = await _context.Escalas
-                .AsNoTracking()
                 .Include(e => e.Funcionario)
                 .Include(e => e.TipoTurno)
                 .Include(e => e.Posto)
-                .Where(e =>
-                    e.Data >= inicio &&
-                    e.Data < fim)
+                .Where(e => e.Data.Date == dia)
                 .OrderBy(e => e.HoraInicio)
+                .ThenBy(e => e.Funcionario!.NomeCompleto)
                 .ToListAsync();
 
-            var lotacoes = await CarregarLotacoesAsync(
-                escalas.Select(e => e.FuncionarioId));
+            var lotacoes =
+                await CarregarLotacoesAsync(
+                    escalas.Select(e => e.FuncionarioId));
 
-            var resultado = escalas
-                .Select(e =>
-                    lotacoes.TryGetValue(
-                        e.FuncionarioId,
-                        out var lotacao)
-                            ? ParaDto(e, lotacao)
-                            : ParaDto(e, null))
-                .ToList();
-
-            return Ok(resultado);
+            return Ok(
+                escalas.Select(e =>
+                    ParaDto(
+                        e,
+                        lotacoes.TryGetValue(
+                            e.FuncionarioId,
+                            out var l)
+                            ? l
+                            : null)));
         }
 
         // ============================================================
-        // GET: api/Escalas/hoje
+        // GET - HOJE
         // ============================================================
+
         [HttpGet("hoje")]
         public async Task<ActionResult<IEnumerable<EscalaRespostaDto>>>
             GetHoje()
         {
-            var hoje = DateTime.Today;
-            var amanha = hoje.AddDays(1);
-
-            var escalas = await _context.Escalas
-                .AsNoTracking()
-                .Include(e => e.Funcionario)
-                .Include(e => e.TipoTurno)
-                .Include(e => e.Posto)
-                .Where(e =>
-                    e.Data >= hoje &&
-                    e.Data < amanha)
-                .OrderBy(e => e.HoraInicio)
-                .ToListAsync();
-
-            var lotacoes = await CarregarLotacoesAsync(
-                escalas.Select(e => e.FuncionarioId));
-
-            var resultado = escalas
-                .Select(e =>
-                    lotacoes.TryGetValue(
-                        e.FuncionarioId,
-                        out var lotacao)
-                            ? ParaDto(e, lotacao)
-                            : ParaDto(e, null))
-                .ToList();
-
-            return Ok(resultado);
+            return await GetPorData(DateTime.Today);
         }
 
         // ============================================================
-        // GET: api/Escalas/ontem
+        // GET - ONTEM
         // ============================================================
+
         [HttpGet("ontem")]
         public async Task<ActionResult<IEnumerable<EscalaRespostaDto>>>
             GetOntem()
         {
-            var ontem = DateTime.Today.AddDays(-1);
-            var hoje = DateTime.Today;
-
-            var escalas = await _context.Escalas
-                .AsNoTracking()
-                .Include(e => e.Funcionario)
-                .Include(e => e.TipoTurno)
-                .Include(e => e.Posto)
-                .Where(e =>
-                    e.Data >= ontem &&
-                    e.Data < hoje)
-                .OrderBy(e => e.HoraInicio)
-                .ToListAsync();
-
-            var lotacoes = await CarregarLotacoesAsync(
-                escalas.Select(e => e.FuncionarioId));
-
-            var resultado = escalas
-                .Select(e =>
-                    lotacoes.TryGetValue(
-                        e.FuncionarioId,
-                        out var lotacao)
-                            ? ParaDto(e, lotacao)
-                            : ParaDto(e, null))
-                .ToList();
-
-            return Ok(resultado);
+            return await GetPorData(
+                DateTime.Today.AddDays(-1));
         }
 
         // ============================================================
-        // GET: api/Escalas/amanha
+        // GET - AMANHÃ
         // ============================================================
+
         [HttpGet("amanha")]
         public async Task<ActionResult<IEnumerable<EscalaRespostaDto>>>
             GetAmanha()
         {
-            var amanha = DateTime.Today.AddDays(1);
-            var depois = amanha.AddDays(2);
-
-            var escalas = await _context.Escalas
-                .AsNoTracking()
-                .Include(e => e.Funcionario)
-                .Include(e => e.TipoTurno)
-                .Include(e => e.Posto)
-                .Where(e =>
-                    e.Data >= amanha &&
-                    e.Data < depois)
-                .OrderBy(e => e.HoraInicio)
-                .ToListAsync();
-
-            var lotacoes = await CarregarLotacoesAsync(
-                escalas.Select(e => e.FuncionarioId));
-
-            var resultado = escalas
-                .Select(e =>
-                    lotacoes.TryGetValue(
-                        e.FuncionarioId,
-                        out var lotacao)
-                            ? ParaDto(e, lotacao)
-                            : ParaDto(e, null))
-                .ToList();
-
-            return Ok(resultado);
+            return await GetPorData(
+                DateTime.Today.AddDays(1));
         }
 
         // ============================================================
-        // GET: api/Escalas/funcionario/414
+        // GET - POR FUNCIONÁRIO
         // ============================================================
+
         [HttpGet("funcionario/{funcionarioId:int}")]
         public async Task<ActionResult<IEnumerable<EscalaRespostaDto>>>
             GetPorFuncionario(int funcionarioId)
         {
-            var funcionarioExiste = await _context.Funcionarios
-                .AnyAsync(f => f.Id == funcionarioId);
-
-            if (!funcionarioExiste)
-            {
-                return NotFound(new
-                {
-                    mensagem = "Funcionário não encontrado."
-                });
-            }
-
             var escalas = await _context.Escalas
-                .AsNoTracking()
                 .Include(e => e.Funcionario)
                 .Include(e => e.TipoTurno)
                 .Include(e => e.Posto)
-                .Where(e => e.FuncionarioId == funcionarioId)
+                .Where(e =>
+                    e.FuncionarioId == funcionarioId)
                 .OrderByDescending(e => e.Data)
-                .ThenByDescending(e => e.HoraInicio)
+                .ThenBy(e => e.HoraInicio)
                 .ToListAsync();
 
-            var lotacoes = await CarregarLotacoesAsync(
-                new[] { funcionarioId });
+            var lotacao =
+                await _context.LotacoesFuncionarios
+                    .Include(l => l.Seccao)
+                    .Include(l => l.UnidadeOperacional)
+                    .Include(l => l.Equipa)
+                    .Include(l => l.FuncaoOperacional)
+                    .FirstOrDefaultAsync(l =>
+                        l.FuncionarioId == funcionarioId &&
+                        l.Ativo);
 
-            lotacoes.TryGetValue(
-                funcionarioId,
-                out var lotacao);
-
-            var resultado = escalas
-                .Select(e => ParaDto(e, lotacao))
-                .ToList();
-
-            return Ok(resultado);
+            return Ok(
+                escalas.Select(e =>
+                    ParaDto(e, lotacao)));
         }
 
         // ============================================================
-        // GET: api/Escalas/posto/5
+        // GET - POR POSTO
         // ============================================================
+
         [HttpGet("posto/{postoId:int}")]
         public async Task<ActionResult<IEnumerable<EscalaRespostaDto>>>
             GetPorPosto(int postoId)
         {
-            var postoExiste = await _context.Postos
-                .AnyAsync(p => p.Id == postoId);
-
-            if (!postoExiste)
-            {
-                return NotFound(new
-                {
-                    mensagem = "Posto não encontrado."
-                });
-            }
-
             var escalas = await _context.Escalas
-                .AsNoTracking()
                 .Include(e => e.Funcionario)
                 .Include(e => e.TipoTurno)
                 .Include(e => e.Posto)
@@ -454,177 +650,122 @@ namespace supai_mp.Controllers
                 .ThenBy(e => e.HoraInicio)
                 .ToListAsync();
 
-            var lotacoes = await CarregarLotacoesAsync(
-                escalas.Select(e => e.FuncionarioId));
+            var lotacoes =
+                await CarregarLotacoesAsync(
+                    escalas.Select(e => e.FuncionarioId));
 
-            var resultado = escalas
-                .Select(e =>
-                    lotacoes.TryGetValue(
-                        e.FuncionarioId,
-                        out var lotacao)
-                            ? ParaDto(e, lotacao)
-                            : ParaDto(e, null))
-                .ToList();
-
-            return Ok(resultado);
+            return Ok(
+                escalas.Select(e =>
+                    ParaDto(
+                        e,
+                        lotacoes.TryGetValue(
+                            e.FuncionarioId,
+                            out var l)
+                            ? l
+                            : null)));
         }
 
         // ============================================================
-        // GET: api/Escalas/tipo-turno/1
+        // GET - POR TIPO DE TURNO
         // ============================================================
+
         [HttpGet("tipo-turno/{tipoTurnoId:int}")]
         public async Task<ActionResult<IEnumerable<EscalaRespostaDto>>>
             GetPorTipoTurno(int tipoTurnoId)
         {
-            var turnoExiste = await _context.TiposTurno
-                .AnyAsync(t => t.Id == tipoTurnoId);
-
-            if (!turnoExiste)
-            {
-                return NotFound(new
-                {
-                    mensagem = "Tipo de turno não encontrado."
-                });
-            }
-
             var escalas = await _context.Escalas
-                .AsNoTracking()
                 .Include(e => e.Funcionario)
                 .Include(e => e.TipoTurno)
                 .Include(e => e.Posto)
-                .Where(e => e.TipoTurnoId == tipoTurnoId)
+                .Where(e =>
+                    e.TipoTurnoId == tipoTurnoId)
                 .OrderByDescending(e => e.Data)
                 .ThenBy(e => e.HoraInicio)
                 .ToListAsync();
 
-            var lotacoes = await CarregarLotacoesAsync(
-                escalas.Select(e => e.FuncionarioId));
+            var lotacoes =
+                await CarregarLotacoesAsync(
+                    escalas.Select(e => e.FuncionarioId));
 
-            var resultado = escalas
-                .Select(e =>
-                    lotacoes.TryGetValue(
-                        e.FuncionarioId,
-                        out var lotacao)
-                            ? ParaDto(e, lotacao)
-                            : ParaDto(e, null))
-                .ToList();
-
-            return Ok(resultado);
+            return Ok(
+                escalas.Select(e =>
+                    ParaDto(
+                        e,
+                        lotacoes.TryGetValue(
+                            e.FuncionarioId,
+                            out var l)
+                            ? l
+                            : null)));
         }
 
         // ============================================================
-        // POST: api/Escalas
+        // POST - CRIAR ESCALA MANUAL
         // ============================================================
+
         [HttpPost]
         [Authorize(Roles = "Administrador")]
-        public async Task<ActionResult<EscalaRespostaDto>> Criar(
-            [FromBody] EscalaDto dados)
+        public async Task<ActionResult<EscalaRespostaDto>>
+            CriarEscala(EscalaDto dados)
         {
-            if (dados == null)
+            var validacao =
+                await ValidarEscalaAsync(dados);
+
+            if (!validacao.Valido)
             {
                 return BadRequest(new
                 {
-                    mensagem = "Os dados da escala são obrigatórios."
+                    mensagem = validacao.Erro
                 });
             }
 
             // --------------------------------------------------------
-            // Validar funcionário
+            // VERIFICAR CONFLITOS
             // --------------------------------------------------------
-            var funcionario = await _context.Funcionarios
-                .FirstOrDefaultAsync(
-                    f => f.Id == dados.FuncionarioId);
 
-            if (funcionario == null)
+            var escalasFuncionario =
+                await _context.Escalas
+                    .Where(e =>
+                        e.FuncionarioId ==
+                        dados.FuncionarioId)
+                    .ToListAsync();
+
+            foreach (var existente in escalasFuncionario)
             {
-                return BadRequest(new
+                if (ExisteConflito(
+                    existente.Data,
+                    existente.HoraInicio,
+                    existente.HoraFim,
+                    dados.Data,
+                    dados.HoraInicio,
+                    dados.HoraFim))
                 {
-                    mensagem = "Funcionário não encontrado."
-                });
-            }
-
-            // --------------------------------------------------------
-            // Validar turno
-            // --------------------------------------------------------
-            var turno = await _context.TiposTurno
-                .FirstOrDefaultAsync(t =>
-                    t.Id == dados.TipoTurnoId &&
-                    t.Ativo);
-
-            if (turno == null)
-            {
-                return BadRequest(new
-                {
-                    mensagem =
-                        "Tipo de turno não encontrado ou está inactivo."
-                });
-            }
-
-            // --------------------------------------------------------
-            // Validar posto
-            // --------------------------------------------------------
-            if (dados.PostoId.HasValue)
-            {
-                var posto = await _context.Postos
-                    .FirstOrDefaultAsync(p =>
-                        p.Id == dados.PostoId.Value &&
-                        p.Ativo);
-
-                if (posto == null)
-                {
-                    return BadRequest(new
+                    return Conflict(new
                     {
                         mensagem =
-                            "Posto não encontrado ou está inactivo."
+                            "O funcionário já possui uma escala que entra em conflito com este horário.",
+                        escalaId = existente.Id
                     });
                 }
             }
 
             // --------------------------------------------------------
-            // Validar horários
+            // CRIAR
             // --------------------------------------------------------
-            if (dados.HoraInicio == dados.HoraFim)
-            {
-                return BadRequest(new
-                {
-                    mensagem =
-                        "A hora de início não pode ser igual à hora de fim."
-                });
-            }
 
-            // --------------------------------------------------------
-            // Verificar conflito
-            // --------------------------------------------------------
-            var conflito = await _context.Escalas
-                .Where(e =>
-                    e.FuncionarioId == dados.FuncionarioId)
-                .Where(e =>
-                    e.Data.Date == dados.Data.Date)
-                .AnyAsync(e =>
-                    e.HoraInicio < dados.HoraFim &&
-                    e.HoraFim > dados.HoraInicio);
-
-            if (conflito)
-            {
-                return Conflict(new
-                {
-                    mensagem =
-                        "O funcionário já possui uma escala que entra " +
-                        "em conflito com este período."
-                });
-            }
-
-            // --------------------------------------------------------
-            // Criar escala
-            // --------------------------------------------------------
             var escala = new Escala
             {
                 FuncionarioId = dados.FuncionarioId,
+
                 Data = dados.Data.Date,
+
                 HoraInicio = dados.HoraInicio,
+
                 HoraFim = dados.HoraFim,
+
                 TipoTurnoId = dados.TipoTurnoId,
+
                 PostoId = dados.PostoId,
+
                 Observacao = dados.Observacao
             };
 
@@ -633,45 +774,34 @@ namespace supai_mp.Controllers
             await _context.SaveChangesAsync();
 
             // --------------------------------------------------------
-            // Recarregar
+            // RECARREGAR
             // --------------------------------------------------------
-            var criada = await _context.Escalas
-                .AsNoTracking()
+
+            escala = await _context.Escalas
                 .Include(e => e.Funcionario)
                 .Include(e => e.TipoTurno)
                 .Include(e => e.Posto)
                 .FirstAsync(e => e.Id == escala.Id);
 
-            var lotacoes = await CarregarLotacoesAsync(
-                new[] { criada.FuncionarioId });
-
-            lotacoes.TryGetValue(
-                criada.FuncionarioId,
-                out var lotacao);
-
             return CreatedAtAction(
                 nameof(GetEscala),
-                new { id = criada.Id },
-                ParaDto(criada, lotacao));
+                new { id = escala.Id },
+                ParaDto(
+                    escala,
+                    validacao.Lotacao));
         }
 
         // ============================================================
-        // PUT: api/Escalas/5
+        // PUT - EDITAR ESCALA
         // ============================================================
+
         [HttpPut("{id:int}")]
         [Authorize(Roles = "Administrador")]
-        public async Task<IActionResult> Editar(
-            int id,
-            [FromBody] EscalaDto dados)
+        public async Task<ActionResult<EscalaRespostaDto>>
+            EditarEscala(
+                int id,
+                EscalaDto dados)
         {
-            if (dados == null)
-            {
-                return BadRequest(new
-                {
-                    mensagem = "Os dados da escala são obrigatórios."
-                });
-            }
-
             var escala = await _context.Escalas
                 .FirstOrDefaultAsync(e => e.Id == id);
 
@@ -683,138 +813,99 @@ namespace supai_mp.Controllers
                 });
             }
 
-            // --------------------------------------------------------
-            // Validar funcionário
-            // --------------------------------------------------------
-            var funcionarioExiste = await _context.Funcionarios
-                .AnyAsync(f => f.Id == dados.FuncionarioId);
+            var validacao =
+                await ValidarEscalaAsync(dados);
 
-            if (!funcionarioExiste)
+            if (!validacao.Valido)
             {
                 return BadRequest(new
                 {
-                    mensagem = "Funcionário não encontrado."
+                    mensagem = validacao.Erro
                 });
             }
 
             // --------------------------------------------------------
-            // Validar turno
+            // CONFLITOS
             // --------------------------------------------------------
-            var turnoExiste = await _context.TiposTurno
-                .AnyAsync(t =>
-                    t.Id == dados.TipoTurnoId &&
-                    t.Ativo);
 
-            if (!turnoExiste)
+            var outrasEscalas =
+                await _context.Escalas
+                    .Where(e =>
+                        e.FuncionarioId ==
+                        dados.FuncionarioId &&
+                        e.Id != id)
+                    .ToListAsync();
+
+            foreach (var existente in outrasEscalas)
             {
-                return BadRequest(new
+                if (ExisteConflito(
+                    existente.Data,
+                    existente.HoraInicio,
+                    existente.HoraFim,
+                    dados.Data,
+                    dados.HoraInicio,
+                    dados.HoraFim))
                 {
-                    mensagem =
-                        "Tipo de turno não encontrado ou está inactivo."
-                });
-            }
-
-            // --------------------------------------------------------
-            // Validar posto
-            // --------------------------------------------------------
-            if (dados.PostoId.HasValue)
-            {
-                var postoExiste = await _context.Postos
-                    .AnyAsync(p =>
-                        p.Id == dados.PostoId.Value &&
-                        p.Ativo);
-
-                if (!postoExiste)
-                {
-                    return BadRequest(new
+                    return Conflict(new
                     {
                         mensagem =
-                            "Posto não encontrado ou está inactivo."
+                            "O funcionário já possui outra escala que entra em conflito com este horário.",
+                        escalaId = existente.Id
                     });
                 }
             }
 
             // --------------------------------------------------------
-            // Validar horário
+            // ATUALIZAR
             // --------------------------------------------------------
-            if (dados.HoraInicio == dados.HoraFim)
-            {
-                return BadRequest(new
-                {
-                    mensagem =
-                        "A hora de início não pode ser igual à hora de fim."
-                });
-            }
 
-            // --------------------------------------------------------
-            // Verificar conflitos
-            // --------------------------------------------------------
-            var conflito = await _context.Escalas
-                .Where(e => e.Id != id)
-                .Where(e =>
-                    e.FuncionarioId == dados.FuncionarioId)
-                .Where(e =>
-                    e.Data.Date == dados.Data.Date)
-                .AnyAsync(e =>
-                    e.HoraInicio < dados.HoraFim &&
-                    e.HoraFim > dados.HoraInicio);
+            escala.FuncionarioId =
+                dados.FuncionarioId;
 
-            if (conflito)
-            {
-                return Conflict(new
-                {
-                    mensagem =
-                        "O funcionário já possui outra escala que " +
-                        "entra em conflito com este período."
-                });
-            }
+            escala.Data =
+                dados.Data.Date;
 
-            // --------------------------------------------------------
-            // Atualizar
-            // --------------------------------------------------------
-            escala.FuncionarioId = dados.FuncionarioId;
-            escala.Data = dados.Data.Date;
-            escala.HoraInicio = dados.HoraInicio;
-            escala.HoraFim = dados.HoraFim;
-            escala.TipoTurnoId = dados.TipoTurnoId;
-            escala.PostoId = dados.PostoId;
-            escala.Observacao = dados.Observacao;
+            escala.HoraInicio =
+                dados.HoraInicio;
+
+            escala.HoraFim =
+                dados.HoraFim;
+
+            escala.TipoTurnoId =
+                dados.TipoTurnoId;
+
+            escala.PostoId =
+                dados.PostoId;
+
+            escala.Observacao =
+                dados.Observacao;
 
             await _context.SaveChangesAsync();
 
-            // --------------------------------------------------------
-            // Recarregar
-            // --------------------------------------------------------
-            var atualizada = await _context.Escalas
-                .AsNoTracking()
+            escala = await _context.Escalas
                 .Include(e => e.Funcionario)
                 .Include(e => e.TipoTurno)
                 .Include(e => e.Posto)
                 .FirstAsync(e => e.Id == id);
 
-            var lotacoes = await CarregarLotacoesAsync(
-                new[] { atualizada.FuncionarioId });
-
-            lotacoes.TryGetValue(
-                atualizada.FuncionarioId,
-                out var lotacao);
-
-            return Ok(new
-            {
-                mensagem = "Escala actualizada com sucesso.",
-                escala = ParaDto(atualizada, lotacao)
-            });
+            return Ok(
+                ParaDto(
+                    escala,
+                    validacao.Lotacao));
         }
 
         // ============================================================
-        // DELETE: api/Escalas/5
+        // DELETE
         // ============================================================
+
         [HttpDelete("{id:int}")]
         [Authorize(Roles = "Administrador")]
-        public async Task<IActionResult> Eliminar(int id)
+        public async Task<IActionResult>
+            ApagarEscala(int id)
         {
-            var escala = await _context.Escalas
-                .FirstOrDefaultAsync(e => e.Id == id);
+            var escala =
+                await _context.Escalas
+                    .FirstOrDefaultAsync(e => e.Id == id);
 
             if (escala == null)
             {
@@ -831,6 +922,298 @@ namespace supai_mp.Controllers
             return Ok(new
             {
                 mensagem = "Escala eliminada com sucesso."
+            });
+        }
+
+        // ============================================================
+        // POST - GERAR ESCALA AUTOMÁTICA
+        // ============================================================
+
+        [HttpPost("gerar")]
+        [Authorize(Roles = "Administrador")]
+        public async Task<IActionResult>
+            GerarEscalaAutomatica(GerarEscalaDto dados)
+        {
+            if (dados.UnidadeOperacionalId <= 0)
+            {
+                return BadRequest(new
+                {
+                    mensagem =
+                        "É necessário indicar a unidade operacional."
+                });
+            }
+
+            // --------------------------------------------------------
+            // UNIDADE
+            // --------------------------------------------------------
+
+            var unidade =
+                await _context.UnidadesOperacionais
+                    .FirstOrDefaultAsync(u =>
+                        u.Id ==
+                        dados.UnidadeOperacionalId &&
+                        u.Ativo);
+
+            if (unidade == null)
+            {
+                return NotFound(new
+                {
+                    mensagem =
+                        "Unidade operacional não encontrada ou está inativa."
+                });
+            }
+
+            // --------------------------------------------------------
+            // GRUPOS ATIVOS DA UNIDADE
+            // --------------------------------------------------------
+
+            var grupos =
+                await _context.GruposEscala
+                    .Include(g => g.Equipa)
+                    .Include(g => g.TipoTurno)
+                    .Where(g =>
+                        g.UnidadeOperacionalId ==
+                        dados.UnidadeOperacionalId &&
+                        g.Ativo)
+                    .OrderBy(g => g.OrdemRotacao)
+                    .ToListAsync();
+
+            if (!grupos.Any())
+            {
+                return BadRequest(new
+                {
+                    mensagem =
+                        "Não existem grupos de escala ativos configurados para esta unidade."
+                });
+            }
+
+            // --------------------------------------------------------
+            // DETERMINAR GRUPO EM SERVIÇO
+            //
+            // A rotação utiliza a DataReferencia do primeiro grupo
+            // e a OrdemRotacao.
+            // --------------------------------------------------------
+
+            var grupoReferencia =
+                grupos.First();
+
+            var dias =
+                (dados.Data.Date -
+                 grupoReferencia.DataReferencia.Date).Days;
+
+            var quantidadeGrupos =
+                grupos.Count;
+
+            var indiceRotacao =
+                ((dias % quantidadeGrupos) +
+                 quantidadeGrupos) %
+                quantidadeGrupos;
+
+            var ordemEmServico =
+                indiceRotacao + 1;
+
+            var grupoServico =
+                grupos.FirstOrDefault(g =>
+                    g.OrdemRotacao ==
+                    ordemEmServico);
+
+            if (grupoServico == null)
+            {
+                return BadRequest(new
+                {
+                    mensagem =
+                        "Não foi possível determinar o grupo em serviço para a data indicada."
+                });
+            }
+
+            // --------------------------------------------------------
+            // TIPO DE TURNO
+            // --------------------------------------------------------
+
+            var tipoTurnoId =
+                dados.TipoTurnoId ??
+                grupoServico.TipoTurnoId;
+
+            var turno =
+                await _context.TiposTurno
+                    .FirstOrDefaultAsync(t =>
+                        t.Id == tipoTurnoId &&
+                        t.Ativo);
+
+            if (turno == null)
+            {
+                return BadRequest(new
+                {
+                    mensagem =
+                        "O tipo de turno configurado para o grupo não existe ou está inativo."
+                });
+            }
+
+            // --------------------------------------------------------
+            // EQUIPA
+            // --------------------------------------------------------
+
+            if (!grupoServico.EquipaId.Equals(
+                    grupoServico.Equipa?.Id))
+            {
+                // Proteção adicional; normalmente não será necessária.
+            }
+
+            var lotacoes =
+                await _context.LotacoesFuncionarios
+                    .Where(l =>
+                        l.Ativo &&
+                        l.UnidadeOperacionalId ==
+                        dados.UnidadeOperacionalId &&
+                        l.EquipaId ==
+                        grupoServico.EquipaId)
+                    .ToListAsync();
+
+            if (!lotacoes.Any())
+            {
+                return Ok(new
+                {
+                    mensagem =
+                        $"O grupo {grupoServico.Nome} ({grupoServico.Equipa?.Nome}) está de serviço, mas não existem funcionários com lotação ativa nessa equipa.",
+                    unidade = unidade.Nome,
+                    grupo = grupoServico.Nome,
+                    equipa = grupoServico.Equipa?.Nome,
+                    data = dados.Data.Date,
+                    escalasCriadas = 0
+                });
+            }
+
+            // --------------------------------------------------------
+            // HORA DE FIM
+            // --------------------------------------------------------
+
+            var horaInicio =
+                dados.HoraInicio;
+
+            var horaFim =
+                horaInicio.Add(
+                    TimeSpan.FromHours(
+                        turno.HorasTrabalho));
+
+            // TimeSpan não pode ultrapassar 24h.
+            horaFim =
+                TimeSpan.FromTicks(
+                    horaFim.Ticks %
+                    TimeSpan.FromDays(1).Ticks);
+
+            // --------------------------------------------------------
+            // CRIAR ESCALAS
+            // --------------------------------------------------------
+
+            var funcionarioIds =
+                lotacoes
+                    .Select(l => l.FuncionarioId)
+                    .Distinct()
+                    .ToList();
+
+            var existentes =
+                await _context.Escalas
+                    .Where(e =>
+                        funcionarioIds.Contains(
+                            e.FuncionarioId))
+                    .ToListAsync();
+
+            var funcionariosCriados = new List<int>();
+
+            foreach (var lotacao in lotacoes)
+            {
+                var jaExiste =
+                    existentes.Any(e =>
+                        e.FuncionarioId ==
+                        lotacao.FuncionarioId &&
+                        ExisteConflito(
+                            e.Data,
+                            e.HoraInicio,
+                            e.HoraFim,
+                            dados.Data.Date,
+                            horaInicio,
+                            horaFim));
+
+                if (jaExiste)
+                    continue;
+
+                var escala = new Escala
+                {
+                    FuncionarioId =
+                        lotacao.FuncionarioId,
+
+                    Data =
+                        dados.Data.Date,
+
+                    HoraInicio =
+                        horaInicio,
+
+                    HoraFim =
+                        horaFim,
+
+                    TipoTurnoId =
+                        turno.Id,
+
+                    PostoId =
+                        dados.PostoId ??
+                        lotacao.PostoId,
+
+                    Observacao =
+                        dados.Observacao ??
+                        $"Escala automática - {grupoServico.Nome} - {grupoServico.Equipa?.Nome}"
+                };
+
+                _context.Escalas.Add(escala);
+
+                funcionariosCriados.Add(
+                    lotacao.FuncionarioId);
+            }
+
+            await _context.SaveChangesAsync();
+
+            return Ok(new
+            {
+                mensagem =
+                    "Escala automática gerada com sucesso.",
+
+                unidade = unidade.Nome,
+
+                unidadeOperacionalId =
+                    unidade.Id,
+
+                grupo = grupoServico.Nome,
+
+                grupoEscalaId =
+                    grupoServico.Id,
+
+                equipa =
+                    grupoServico.Equipa?.Nome,
+
+                equipaId =
+                    grupoServico.EquipaId,
+
+                ordemRotacao =
+                    grupoServico.OrdemRotacao,
+
+                data =
+                    dados.Data.Date,
+
+                horaInicio,
+
+                horaFim,
+
+                tipoTurno =
+                    turno.Nome,
+
+                funcionariosNaEquipa =
+                    lotacoes.Count,
+
+                escalasCriadas =
+                    funcionariosCriados.Count,
+
+                funcionariosIgnorados =
+                    lotacoes.Count -
+                    funcionariosCriados.Count
             });
         }
     }
