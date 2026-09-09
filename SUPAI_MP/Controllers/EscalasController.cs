@@ -537,7 +537,7 @@ namespace supai_mp.Controllers
 
         [HttpGet("data/{data}")]
         public async Task<ActionResult<IEnumerable<EscalaRespostaDto>>>
-            GetPorData(DateTime data)
+    GetPorData(DateTime data)
         {
             var dia = data.Date;
 
@@ -554,15 +554,69 @@ namespace supai_mp.Controllers
                 await CarregarLotacoesAsync(
                     escalas.Select(e => e.FuncionarioId));
 
-            return Ok(
-                escalas.Select(e =>
-                    ParaDto(
+            var resultado = escalas
+                .Select(e =>
+                {
+                    lotacoes.TryGetValue(
+                        e.FuncionarioId,
+                        out var lotacao);
+
+                    return ParaDto(
                         e,
-                        lotacoes.TryGetValue(
-                            e.FuncionarioId,
-                            out var l)
-                            ? l
-                            : null)));
+                        lotacao);
+                })
+                .ToList();
+
+            // ========================================================
+            // DIAGNÓSTICO
+            // ========================================================
+
+            Console.WriteLine(
+                "====================================================");
+
+            Console.WriteLine(
+                $"ESCALAS DA DATA: {dia:yyyy-MM-dd}");
+
+            Console.WriteLine(
+                $"TOTAL DE ESCALAS: {resultado.Count}");
+
+            Console.WriteLine(
+                $"ESCOLTA A: {resultado.Count(x =>
+                    string.Equals(
+                        x.UnidadeOperacional?.Trim(),
+                        "Escolta A",
+                        StringComparison.OrdinalIgnoreCase))}");
+
+            Console.WriteLine(
+                $"ESCOLTA C: {resultado.Count(x =>
+                    string.Equals(
+                        x.UnidadeOperacional?.Trim(),
+                        "Escolta C",
+                        StringComparison.OrdinalIgnoreCase))}");
+
+            var unidades =
+                resultado
+                    .Select(x => x.UnidadeOperacional)
+                    .Where(x =>
+                        !string.IsNullOrWhiteSpace(x))
+                    .Select(x => x!.Trim())
+                    .Distinct()
+                    .OrderBy(x => x)
+                    .ToList();
+
+            Console.WriteLine(
+                "UNIDADES OPERACIONAIS DEVOLVIDAS:");
+
+            foreach (var unidade in unidades)
+            {
+                Console.WriteLine(
+                    $" -> [{unidade}]");
+            }
+
+            Console.WriteLine(
+                "====================================================");
+
+            return Ok(resultado);
         }
 
         // ============================================================
