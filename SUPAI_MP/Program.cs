@@ -122,15 +122,15 @@ var app = builder.Build();
 // MIGRATIONS + SEED
 // ============================================================
 
-using (var scope = app.Services.CreateScope())
-{
-    var db = scope.ServiceProvider
-        .GetRequiredService<ApplicationDbContext>();
+//using (var scope = app.Services.CreateScope())
+//{
+//    var db = scope.ServiceProvider
+//        .GetRequiredService<ApplicationDbContext>();
 
-    await db.Database.MigrateAsync();
+//    await db.Database.MigrateAsync();
 
-    await OrganizacaoSeed.SeedAsync(db);
-}
+//    await OrganizacaoSeed.SeedAsync(db);
+//}
 
 // ============================================================
 // SWAGGER
