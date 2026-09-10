@@ -1009,524 +1009,305 @@ namespace SUPAI_MP.Controllers
             GerarEscalaAutomatica(
                 [FromBody] GerarEscalaDto dados)
         {
-            // ========================================================
-            // VALIDACOES INICIAIS
-            // ========================================================
-
-            if (dados.UnidadeOperacionalId <= 0)
+            try
             {
-                return BadRequest(
-                    new
-                    {
-                        mensagem = "Unidade operacional inválida."
-                    }
-                );
-            }
+                // ========================================================
+                // VALIDACOES INICIAIS
+                // ========================================================
 
-            if (!HoraValida(dados.HoraInicio))
-            {
-                return BadRequest(
-                    new
-                    {
-                        mensagem = "Hora de início inválida."
-                    }
-                );
-            }
+                if (dados.UnidadeOperacionalId <= 0)
+                {
+                    return BadRequest(
+                        new
+                        {
+                            mensagem = "Unidade operacional inválida."
+                        }
+                    );
+                }
 
-            var dataEscala = dados.Data.Date;
+                if (!HoraValida(dados.HoraInicio))
+                {
+                    return BadRequest(
+                        new
+                        {
+                            mensagem = "Hora de início inválida."
+                        }
+                    );
+                }
 
-            // ========================================================
-            // UNIDADE
-            // ========================================================
+                var dataEscala = dados.Data.Date;
 
-            var unidade =
-                await _context.UnidadesOperacionais
-                    .FirstOrDefaultAsync(u =>
-                        u.Id == dados.UnidadeOperacionalId &&
-                        u.Ativo);
+                // ========================================================
+                // UNIDADE
+                // ========================================================
 
-            if (unidade == null)
-            {
-                return NotFound(
-                    new
-                    {
-                        mensagem =
-                            "Unidade operacional não encontrada ou está inativa."
-                    }
-                );
-            }
+                var unidade =
+                    await _context.UnidadesOperacionais
+                        .FirstOrDefaultAsync(u =>
+                            u.Id == dados.UnidadeOperacionalId &&
+                            u.Ativo);
 
-            // ========================================================
-            // GRUPOS DE ROTACAO
-            // ========================================================
+                if (unidade == null)
+                {
+                    return NotFound(
+                        new
+                        {
+                            mensagem =
+                                "Unidade operacional não encontrada ou está inativa."
+                        }
+                    );
+                }
 
-            var grupos =
-                await _context.GruposEscala
-                    .Include(g => g.UnidadeOperacional)
-                    .Include(g => g.Equipa)
-                    .Include(g => g.TipoTurno)
-                    .Where(g =>
-                        g.Ativo &&
-                        g.UnidadeOperacionalId ==
-                        dados.UnidadeOperacionalId)
-                    .OrderBy(g => g.OrdemRotacao)
-                    .ToListAsync();
+                // ========================================================
+                // GRUPOS DE ROTACAO
+                // ========================================================
 
-            if (grupos.Count == 0)
-            {
-                return BadRequest(
-                    new
-                    {
-                        mensagem =
-                            "Não existem grupos de escala ativos para esta unidade operacional."
-                    }
-                );
-            }
+                var grupos =
+                    await _context.GruposEscala
+                        .Include(g => g.UnidadeOperacional)
+                        .Include(g => g.Equipa)
+                        .Include(g => g.TipoTurno)
+                        .Where(g =>
+                            g.Ativo &&
+                            g.UnidadeOperacionalId ==
+                            dados.UnidadeOperacionalId)
+                        .OrderBy(g => g.OrdemRotacao)
+                        .ToListAsync();
 
-            // ========================================================
-            // VALIDAR ORDENS DE ROTACAO
-            //
-            // Devemos ter:
-            // 1, 2, 3...
-            // ========================================================
-
-            for (int i = 0; i < grupos.Count; i++)
-            {
-                var ordemEsperada = i + 1;
-
-                if (grupos[i].OrdemRotacao != ordemEsperada)
+                if (grupos.Count == 0)
                 {
                     return BadRequest(
                         new
                         {
                             mensagem =
-                                $"A rotação da unidade '{unidade.Nome}' está inválida. " +
-                                $"Esperada ordem {ordemEsperada}, encontrada {grupos[i].OrdemRotacao}."
+                                "Não existem grupos de escala ativos para esta unidade operacional."
                         }
                     );
                 }
-            }
 
-            // ========================================================
-            // GRUPO DE REFERENCIA
-            //
-            // Exemplo Escolta C:
-            //
-            // 09/07 = Charlie ordem 1
-            // 09/08 = Alfa    ordem 2
-            // 09/09 = Beta    ordem 3
-            // 09/10 = Charlie ordem 1
-            //
-            // ========================================================
+                // ========================================================
+                // VALIDAR ORDENS DE ROTACAO
+                //
+                // Devemos ter:
+                // 1, 2, 3...
+                // ========================================================
 
-            var grupoReferencia =
-                grupos.First();
-
-            var dias =
-                (dataEscala.Date -
-                 grupoReferencia.DataReferencia.Date).Days;
-
-            var indiceRotacao =
-                ((dias % grupos.Count) + grupos.Count) %
-                grupos.Count;
-
-            var ordemEmServico =
-                indiceRotacao + 1;
-
-            var grupoServico =
-                grupos.FirstOrDefault(g =>
-                    g.OrdemRotacao == ordemEmServico);
-
-            if (grupoServico == null)
-            {
-                return BadRequest(
-                    new
-                    {
-                        mensagem =
-                            $"Não foi possível determinar o grupo de rotação para a data {dataEscala:dd/MM/yyyy}."
-                    }
-                );
-            }
-
-            // ========================================================
-            // EQUIPA
-            // ========================================================
-
-            if (grupoServico.Equipa == null)
-            {
-                return BadRequest(
-                    new
-                    {
-                        mensagem =
-                            $"O grupo '{grupoServico.Nome}' não possui uma equipa associada."
-                    }
-                );
-            }
-
-            if (grupoServico.Equipa.UnidadeOperacionalId !=
-                dados.UnidadeOperacionalId)
-            {
-                return BadRequest(
-                    new
-                    {
-                        mensagem =
-                            "A equipa do grupo de escala não pertence à unidade operacional selecionada."
-                    }
-                );
-            }
-
-            // ========================================================
-            // TURNO
-            // ========================================================
-
-            var turnoId =
-                dados.TipoTurnoId ??
-                grupoServico.TipoTurnoId;
-
-            if (dados.TipoTurnoId.HasValue &&
-                dados.TipoTurnoId.Value != grupoServico.TipoTurnoId)
-            {
-                return BadRequest(
-                    new
-                    {
-                        mensagem =
-                            $"O turno informado não corresponde ao turno configurado no grupo '{grupoServico.Nome}'."
-                    }
-                );
-            }
-
-            var turno =
-                await _context.TiposTurno
-                    .FirstOrDefaultAsync(t =>
-                        t.Id == turnoId &&
-                        t.Ativo);
-
-            if (turno == null)
-            {
-                return BadRequest(
-                    new
-                    {
-                        mensagem =
-                            "O tipo de turno não foi encontrado ou está inativo."
-                    }
-                );
-            }
-
-            if (turno.HorasTrabalho <= 0)
-            {
-                return BadRequest(
-                    new
-                    {
-                        mensagem =
-                            "O tipo de turno não possui uma quantidade de horas de trabalho válida."
-                    }
-                );
-            }
-
-            // ========================================================
-            // CALCULAR HORA FINAL
-            // ========================================================
-
-            var inicioDateTime =
-                CalcularInicio(
-                    dataEscala,
-                    dados.HoraInicio);
-
-            var fimDateTime =
-                inicioDateTime.AddHours(
-                    turno.HorasTrabalho);
-
-            var horaFim =
-                fimDateTime.TimeOfDay;
-
-            // ========================================================
-            // LOTACOES VALIDAS NA DATA DA ESCALA
-            //
-            // ESTA É UMA CORREÇÃO MUITO IMPORTANTE.
-            //
-            // Não usamos:
-            //
-            //     l.Ativo
-            //
-            // Porque uma lotação antiga pode estar inativa hoje,
-            // mas ter sido perfeitamente válida na data histórica
-            // da escala.
-            // ========================================================
-
-            var lotacoes =
-                await _context.LotacoesFuncionarios
-                    .Include(l => l.Funcionario)
-                    .Include(l => l.Seccao)
-                    .Include(l => l.UnidadeOperacional)
-                    .Include(l => l.Equipa)
-                    .Include(l => l.FuncaoOperacional)
-                    .Include(l => l.TipoTurno)
-                    .Include(l => l.Posto)
-                    .Where(l =>
-                        l.UnidadeOperacionalId ==
-                            dados.UnidadeOperacionalId &&
-
-                        l.EquipaId ==
-                            grupoServico.EquipaId &&
-
-                        l.DataInicio.Date <= dataEscala &&
-
-                        (
-                            l.DataFim == null ||
-                            l.DataFim.Value.Date > dataEscala
-                        )
-                    )
-                    .OrderBy(l => l.Funcionario!.NomeCompleto)
-                    .ToListAsync();
-
-            // ========================================================
-            // RESULTADO
-            // ========================================================
-
-            var resultado =
-                new GerarEscalaResultadoDto
+                for (int i = 0; i < grupos.Count; i++)
                 {
-                    UnidadeId =
-                        unidade.Id,
+                    var ordemEsperada = i + 1;
 
-                    UnidadeNome =
-                        unidade.Nome,
+                    if (grupos[i].OrdemRotacao != ordemEsperada)
+                    {
+                        return BadRequest(
+                            new
+                            {
+                                mensagem =
+                                    $"A rotação da unidade '{unidade.Nome}' está inválida. " +
+                                    $"Esperada ordem {ordemEsperada}, encontrada {grupos[i].OrdemRotacao}."
+                            }
+                        );
+                    }
+                }
 
-                    GrupoId =
-                        grupoServico.Id,
+                // ========================================================
+                // GRUPO DE REFERENCIA
+                //
+                // Exemplo Escolta C:
+                //
+                // 09/07 = Charlie ordem 1
+                // 09/08 = Alfa    ordem 2
+                // 09/09 = Beta    ordem 3
+                // 09/10 = Charlie ordem 1
+                //
+                // ========================================================
 
-                    GrupoNome =
-                        grupoServico.Nome,
+                var grupoReferencia =
+                    grupos.First();
 
-                    OrdemRotacao =
-                        grupoServico.OrdemRotacao,
+                var dias =
+                    (dataEscala.Date -
+                     grupoReferencia.DataReferencia.Date).Days;
 
-                    EquipaId =
-                        grupoServico.EquipaId,
+                var indiceRotacao =
+                    ((dias % grupos.Count) + grupos.Count) %
+                    grupos.Count;
 
-                    EquipaNome =
-                        grupoServico.Equipa.Nome,
+                var ordemEmServico =
+                    indiceRotacao + 1;
 
-                    Data =
+                var grupoServico =
+                    grupos.FirstOrDefault(g =>
+                        g.OrdemRotacao == ordemEmServico);
+
+                if (grupoServico == null)
+                {
+                    return BadRequest(
+                        new
+                        {
+                            mensagem =
+                                $"Não foi possível determinar o grupo de rotação para a data {dataEscala:dd/MM/yyyy}."
+                        }
+                    );
+                }
+
+                // ========================================================
+                // EQUIPA
+                // ========================================================
+
+                if (grupoServico.Equipa == null)
+                {
+                    return BadRequest(
+                        new
+                        {
+                            mensagem =
+                                $"O grupo '{grupoServico.Nome}' não possui uma equipa associada."
+                        }
+                    );
+                }
+
+                if (grupoServico.Equipa.UnidadeOperacionalId !=
+                    dados.UnidadeOperacionalId)
+                {
+                    return BadRequest(
+                        new
+                        {
+                            mensagem =
+                                "A equipa do grupo de escala não pertence à unidade operacional selecionada."
+                        }
+                    );
+                }
+
+                // ========================================================
+                // TURNO
+                // ========================================================
+
+                var turnoId =
+                    dados.TipoTurnoId ??
+                    grupoServico.TipoTurnoId;
+
+                if (dados.TipoTurnoId.HasValue &&
+                    dados.TipoTurnoId.Value != grupoServico.TipoTurnoId)
+                {
+                    return BadRequest(
+                        new
+                        {
+                            mensagem =
+                                $"O turno informado não corresponde ao turno configurado no grupo '{grupoServico.Nome}'."
+                        }
+                    );
+                }
+
+                var turno =
+                    await _context.TiposTurno
+                        .FirstOrDefaultAsync(t =>
+                            t.Id == turnoId &&
+                            t.Ativo);
+
+                if (turno == null)
+                {
+                    return BadRequest(
+                        new
+                        {
+                            mensagem =
+                                "O tipo de turno não foi encontrado ou está inativo."
+                        }
+                    );
+                }
+
+                if (turno.HorasTrabalho <= 0)
+                {
+                    return BadRequest(
+                        new
+                        {
+                            mensagem =
+                                "O tipo de turno não possui uma quantidade de horas de trabalho válida."
+                        }
+                    );
+                }
+
+                // ========================================================
+                // CALCULAR HORA FINAL
+                // ========================================================
+
+                var inicioDateTime =
+                    CalcularInicio(
                         dataEscala,
+                        dados.HoraInicio);
 
-                    HoraInicio =
-                        dados.HoraInicio,
+                var fimDateTime =
+                    inicioDateTime.AddHours(
+                        turno.HorasTrabalho);
 
-                    HoraFim =
-                        horaFim,
+                var horaFim =
+                    fimDateTime.TimeOfDay;
 
-                    TipoTurnoId =
-                        turno.Id,
-
-                    TipoTurnoNome =
-                        turno.Nome,
-
-                    FuncionariosNaEquipa =
-                        lotacoes.Count
-                };
-
-            if (lotacoes.Count == 0)
-            {
-                resultado.Mensagem =
-                    $"Não existem funcionários com lotação válida na equipa '{grupoServico.Equipa.Nome}' para a data {dataEscala:dd/MM/yyyy}.";
-
-                return Ok(resultado);
-            }
-
-            // ========================================================
-            // SEPARAR LOTACOES COM TURNO VALIDO / INVALIDO
-            // ========================================================
-
-            var lotacoesValidas =
-                new List<LotacaoFuncionario>();
-
-            foreach (var lotacao in lotacoes)
-            {
-                var dtoFuncionario =
-                    new FuncionarioEscalaResultadoDto
-                    {
-                        FuncionarioId =
-                            lotacao.FuncionarioId,
-
-                        Nome =
-                            lotacao.Funcionario?.NomeCompleto,
-
-                        Nip =
-                            lotacao.Funcionario?.Nip,
-
-                        Funcao =
-                            lotacao.FuncaoOperacional?.Nome,
-
-                        Equipa =
-                            lotacao.Equipa?.Nome,
-
-                        PostoId =
-                            lotacao.PostoId,
-
-                        Posto =
-                            lotacao.Posto?.Nome,
-
-                        TurnoLotacao =
-                            lotacao.TipoTurno?.Nome
-                    };
-
-                if (lotacao.FuncaoOperacionalId <= 0)
-                {
-                    resultado.FuncionariosComTurnoInvalido
-                        .Add(dtoFuncionario);
-
-                    continue;
-                }
-
-                if (lotacao.TipoTurnoId.HasValue &&
-                    lotacao.TipoTurnoId.Value != turno.Id)
-                {
-                    resultado.FuncionariosComTurnoInvalido
-                        .Add(dtoFuncionario);
-
-                    continue;
-                }
-
-                lotacoesValidas.Add(lotacao);
-            }
-
-            resultado.FuncionariosComLotacaoValida =
-                lotacoesValidas.Count;
-
-            resultado.QuantidadeFuncionariosComTurnoInvalido =
-                resultado.FuncionariosComTurnoInvalido.Count;
-
-            // ========================================================
-            // BUSCAR ESCALAS EXISTENTES
-            // ========================================================
-
-            var funcionarioIds =
-                lotacoesValidas
-                    .Select(l => l.FuncionarioId)
-                    .Distinct()
-                    .ToList();
-
-            var escalasExistentes =
-                await _context.Escalas
-                    .Where(e =>
-                        funcionarioIds.Contains(e.FuncionarioId))
-                    .ToListAsync();
-
-            // ========================================================
-            // PROCESSAR FUNCIONARIO POR FUNCIONARIO
-            // ========================================================
-
-            foreach (var lotacao in lotacoesValidas)
-            {
-                var funcionario =
-                    lotacao.Funcionario;
-
-                if (funcionario == null)
-                {
-                    continue;
-                }
-
-                var resultadoFuncionario =
-                    new FuncionarioEscalaResultadoDto
-                    {
-                        FuncionarioId =
-                            funcionario.Id,
-
-                        Nome =
-                            funcionario.NomeCompleto,
-
-                        Nip =
-                            funcionario.Nip,
-
-                        Funcao =
-                            lotacao.FuncaoOperacional?.Nome,
-
-                        Equipa =
-                            lotacao.Equipa?.Nome,
-
-                        PostoId =
-                            lotacao.PostoId,
-
-                        Posto =
-                            lotacao.Posto?.Nome,
-
-                        TurnoLotacao =
-                            lotacao.TipoTurno?.Nome
-                    };
-
-                var postoEfetivo =
-                    dados.PostoId ??
-                    lotacao.PostoId;
-
-                // ====================================================
-                // 1. PRIMEIRO: VERIFICAR DUPLICADO EXATO
+                // ========================================================
+                // LOTACOES VALIDAS NA DATA DA ESCALA
                 //
-                // Se a mesma geração for executada novamente,
-                // não devemos chamar isso de conflito.
-                // ====================================================
-
-                var escalaIgual =
-                    escalasExistentes.FirstOrDefault(e =>
-                        e.FuncionarioId ==
-                            funcionario.Id &&
-
-                        EscalaExatamenteIgual(
-                            e,
-                            dataEscala,
-                            dados.HoraInicio,
-                            horaFim,
-                            turno.Id,
-                            postoEfetivo));
-
-                if (escalaIgual != null)
-                {
-                    resultado.EscalasJaExistentes++;
-
-                    resultado.FuncionariosJaEscalados
-                        .Add(resultadoFuncionario);
-
-                    continue;
-                }
-
-                // ====================================================
-                // 2. DEPOIS: VERIFICAR CONFLITO
-                // ====================================================
-
-                var conflito =
-                    escalasExistentes.FirstOrDefault(e =>
-                        e.FuncionarioId ==
-                            funcionario.Id &&
-
-                        ExisteConflito(
-                            e.Data,
-                            e.HoraInicio,
-                            e.HoraFim,
-                            dataEscala,
-                            dados.HoraInicio,
-                            horaFim));
-
-                if (conflito != null)
-                {
-                    resultado.QuantidadeFuncionariosComConflito++;
-
-                    resultado.FuncionariosComConflito
-                        .Add(resultadoFuncionario);
-
-                    continue;
-                }
-
-                // ====================================================
-                // 3. CRIAR ESCALA
+                // ESTA É UMA CORREÇÃO MUITO IMPORTANTE.
                 //
-                // Guardamos o snapshot da lotação.
-                // ====================================================
+                // Não usamos:
+                //
+                //     l.Ativo
+                //
+                // Porque uma lotação antiga pode estar inativa hoje,
+                // mas ter sido perfeitamente válida na data histórica
+                // da escala.
+                // ========================================================
 
-                var novaEscala =
-                    new Escala
+                var lotacoes =
+                    await _context.LotacoesFuncionarios
+                        .Include(l => l.Funcionario)
+                        .Include(l => l.Seccao)
+                        .Include(l => l.UnidadeOperacional)
+                        .Include(l => l.Equipa)
+                        .Include(l => l.FuncaoOperacional)
+                        .Include(l => l.TipoTurno)
+                        .Include(l => l.Posto)
+                        .Where(l =>
+                            l.UnidadeOperacionalId ==
+                                dados.UnidadeOperacionalId &&
+
+                            l.EquipaId ==
+                                grupoServico.EquipaId &&
+
+                            l.DataInicio.Date <= dataEscala &&
+
+                            (
+                                l.DataFim == null ||
+                                l.DataFim.Value.Date > dataEscala
+                            )
+                        )
+                        .OrderBy(l => l.Funcionario!.NomeCompleto)
+                        .ToListAsync();
+
+                // ========================================================
+                // RESULTADO
+                // ========================================================
+
+                var resultado =
+                    new GerarEscalaResultadoDto
                     {
-                        FuncionarioId =
-                            funcionario.Id,
+                        UnidadeId =
+                            unidade.Id,
+
+                        UnidadeNome =
+                            unidade.Nome,
+
+                        GrupoId =
+                            grupoServico.Id,
+
+                        GrupoNome =
+                            grupoServico.Nome,
+
+                        OrdemRotacao =
+                            grupoServico.OrdemRotacao,
+
+                        EquipaId =
+                            grupoServico.EquipaId,
+
+                        EquipaNome =
+                            grupoServico.Equipa.Nome,
 
                         Data =
                             dataEscala,
@@ -1540,67 +1321,302 @@ namespace SUPAI_MP.Controllers
                         TipoTurnoId =
                             turno.Id,
 
-                        PostoId =
-                            postoEfetivo,
+                        TipoTurnoNome =
+                            turno.Nome,
 
-                        Observacao =
-                            dados.Observacao,
-
-                        // SNAPSHOT
-                        SeccaoId =
-                            lotacao.SeccaoId,
-
-                        UnidadeOperacionalId =
-                            lotacao.UnidadeOperacionalId,
-
-                        EquipaId =
-                            lotacao.EquipaId,
-
-                        FuncaoOperacionalId =
-                            lotacao.FuncaoOperacionalId
+                        FuncionariosNaEquipa =
+                            lotacoes.Count
                     };
 
-                _context.Escalas.Add(novaEscala);
+                if (lotacoes.Count == 0)
+                {
+                    resultado.Mensagem =
+                        $"Não existem funcionários com lotação válida na equipa '{grupoServico.Equipa.Nome}' para a data {dataEscala:dd/MM/yyyy}.";
 
-                // Adicionar imediatamente à lista para impedir
-                // que outro funcionário/iteração gere duplicação
-                // dentro da mesma operação.
-                escalasExistentes.Add(novaEscala);
+                    return Ok(resultado);
+                }
 
-                resultado.EscalasCriadas++;
+                // ========================================================
+                // SEPARAR LOTACOES COM TURNO VALIDO / INVALIDO
+                // ========================================================
 
-                resultado.FuncionariosEscalados
-                    .Add(resultadoFuncionario);
+                var lotacoesValidas =
+                    new List<LotacaoFuncionario>();
+
+                foreach (var lotacao in lotacoes)
+                {
+                    var dtoFuncionario =
+                        new FuncionarioEscalaResultadoDto
+                        {
+                            FuncionarioId =
+                                lotacao.FuncionarioId,
+
+                            Nome =
+                                lotacao.Funcionario?.NomeCompleto,
+
+                            Nip =
+                                lotacao.Funcionario?.Nip,
+
+                            Funcao =
+                                lotacao.FuncaoOperacional?.Nome,
+
+                            Equipa =
+                                lotacao.Equipa?.Nome,
+
+                            PostoId =
+                                lotacao.PostoId,
+
+                            Posto =
+                                lotacao.Posto?.Nome,
+
+                            TurnoLotacao =
+                                lotacao.TipoTurno?.Nome
+                        };
+
+                    if (lotacao.FuncaoOperacionalId <= 0)
+                    {
+                        resultado.FuncionariosComTurnoInvalido
+                            .Add(dtoFuncionario);
+
+                        continue;
+                    }
+
+                    if (lotacao.TipoTurnoId.HasValue &&
+                        lotacao.TipoTurnoId.Value != turno.Id)
+                    {
+                        resultado.FuncionariosComTurnoInvalido
+                            .Add(dtoFuncionario);
+
+                        continue;
+                    }
+
+                    lotacoesValidas.Add(lotacao);
+                }
+
+                resultado.FuncionariosComLotacaoValida =
+                    lotacoesValidas.Count;
+
+                resultado.QuantidadeFuncionariosComTurnoInvalido =
+                    resultado.FuncionariosComTurnoInvalido.Count;
+
+                // ========================================================
+                // BUSCAR ESCALAS EXISTENTES
+                // ========================================================
+
+                var funcionarioIds =
+                    lotacoesValidas
+                        .Select(l => l.FuncionarioId)
+                        .Distinct()
+                        .ToList();
+
+                var escalasExistentes =
+                    await _context.Escalas
+                        .Where(e =>
+                            funcionarioIds.Contains(e.FuncionarioId))
+                        .ToListAsync();
+
+                // ========================================================
+                // PROCESSAR FUNCIONARIO POR FUNCIONARIO
+                // ========================================================
+
+                foreach (var lotacao in lotacoesValidas)
+                {
+                    var funcionario =
+                        lotacao.Funcionario;
+
+                    if (funcionario == null)
+                    {
+                        continue;
+                    }
+
+                    var resultadoFuncionario =
+                        new FuncionarioEscalaResultadoDto
+                        {
+                            FuncionarioId =
+                                funcionario.Id,
+
+                            Nome =
+                                funcionario.NomeCompleto,
+
+                            Nip =
+                                funcionario.Nip,
+
+                            Funcao =
+                                lotacao.FuncaoOperacional?.Nome,
+
+                            Equipa =
+                                lotacao.Equipa?.Nome,
+
+                            PostoId =
+                                lotacao.PostoId,
+
+                            Posto =
+                                lotacao.Posto?.Nome,
+
+                            TurnoLotacao =
+                                lotacao.TipoTurno?.Nome
+                        };
+
+                    var postoEfetivo =
+                        dados.PostoId ??
+                        lotacao.PostoId;
+
+                    // ====================================================
+                    // 1. PRIMEIRO: VERIFICAR DUPLICADO EXATO
+                    //
+                    // Se a mesma geração for executada novamente,
+                    // não devemos chamar isso de conflito.
+                    // ====================================================
+
+                    var escalaIgual =
+                        escalasExistentes.FirstOrDefault(e =>
+                            e.FuncionarioId ==
+                                funcionario.Id &&
+
+                            EscalaExatamenteIgual(
+                                e,
+                                dataEscala,
+                                dados.HoraInicio,
+                                horaFim,
+                                turno.Id,
+                                postoEfetivo));
+
+                    if (escalaIgual != null)
+                    {
+                        resultado.EscalasJaExistentes++;
+
+                        resultado.FuncionariosJaEscalados
+                            .Add(resultadoFuncionario);
+
+                        continue;
+                    }
+
+                    // ====================================================
+                    // 2. DEPOIS: VERIFICAR CONFLITO
+                    // ====================================================
+
+                    var conflito =
+                        escalasExistentes.FirstOrDefault(e =>
+                            e.FuncionarioId ==
+                                funcionario.Id &&
+
+                            ExisteConflito(
+                                e.Data,
+                                e.HoraInicio,
+                                e.HoraFim,
+                                dataEscala,
+                                dados.HoraInicio,
+                                horaFim));
+
+                    if (conflito != null)
+                    {
+                        resultado.QuantidadeFuncionariosComConflito++;
+
+                        resultado.FuncionariosComConflito
+                            .Add(resultadoFuncionario);
+
+                        continue;
+                    }
+
+                    // ====================================================
+                    // 3. CRIAR ESCALA
+                    //
+                    // Guardamos o snapshot da lotação.
+                    // ====================================================
+
+                    var novaEscala =
+                        new Escala
+                        {
+                            FuncionarioId =
+                                funcionario.Id,
+
+                            Data =
+                                dataEscala,
+
+                            HoraInicio =
+                                dados.HoraInicio,
+
+                            HoraFim =
+                                horaFim,
+
+                            TipoTurnoId =
+                                turno.Id,
+
+                            PostoId =
+                                postoEfetivo,
+
+                            Observacao =
+                                dados.Observacao,
+
+                            // SNAPSHOT
+                            SeccaoId =
+                                lotacao.SeccaoId,
+
+                            UnidadeOperacionalId =
+                                lotacao.UnidadeOperacionalId,
+
+                            EquipaId =
+                                lotacao.EquipaId,
+
+                            FuncaoOperacionalId =
+                                lotacao.FuncaoOperacionalId
+                        };
+
+                    _context.Escalas.Add(novaEscala);
+
+                    // Adicionar imediatamente à lista para impedir
+                    // que outro funcionário/iteração gere duplicação
+                    // dentro da mesma operação.
+                    escalasExistentes.Add(novaEscala);
+
+                    resultado.EscalasCriadas++;
+
+                    resultado.FuncionariosEscalados
+                        .Add(resultadoFuncionario);
+                }
+
+                // ========================================================
+                // GUARDAR
+                // ========================================================
+
+                await _context.SaveChangesAsync();
+
+                // ========================================================
+                // MENSAGEM FINAL
+                // ========================================================
+
+                if (resultado.EscalasCriadas > 0 &&
+                    resultado.EscalasJaExistentes == 0 &&
+                    resultado.QuantidadeFuncionariosComConflito == 0)
+                {
+                    resultado.Mensagem =
+                        $"Escala automática gerada com sucesso para {resultado.EscalasCriadas} funcionário(s).";
+                }
+                else
+                {
+                    resultado.Mensagem =
+                        $"Processamento concluído. " +
+                        $"Criadas: {resultado.EscalasCriadas}; " +
+                        $"já existentes: {resultado.EscalasJaExistentes}; " +
+                        $"conflitos: {resultado.QuantidadeFuncionariosComConflito}; " +
+                        $"turno inválido: {resultado.QuantidadeFuncionariosComTurnoInvalido}.";
+                }
+
+                return Ok(resultado);
             }
-
-            // ========================================================
-            // GUARDAR
-            // ========================================================
-
-            await _context.SaveChangesAsync();
-
-            // ========================================================
-            // MENSAGEM FINAL
-            // ========================================================
-
-            if (resultado.EscalasCriadas > 0 &&
-                resultado.EscalasJaExistentes == 0 &&
-                resultado.QuantidadeFuncionariosComConflito == 0)
+            catch (Exception ex)
             {
-                resultado.Mensagem =
-                    $"Escala automática gerada com sucesso para {resultado.EscalasCriadas} funcionário(s).";
-            }
-            else
-            {
-                resultado.Mensagem =
-                    $"Processamento concluído. " +
-                    $"Criadas: {resultado.EscalasCriadas}; " +
-                    $"já existentes: {resultado.EscalasJaExistentes}; " +
-                    $"conflitos: {resultado.QuantidadeFuncionariosComConflito}; " +
-                    $"turno inválido: {resultado.QuantidadeFuncionariosComTurnoInvalido}.";
+                return StatusCode(500, new
+                {
+                    erro = "Erro ao gerar escala automática.",
+                    tipo = ex.GetType().FullName,
+                    mensagem = ex.Message,
+                    innerException = ex.InnerException?.Message,
+                    innerException2 = ex.InnerException?.InnerException?.Message,
+                    stackTrace = ex.StackTrace
+                });
             }
 
-            return Ok(resultado);
         }
     }
 }
