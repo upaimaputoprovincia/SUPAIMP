@@ -1618,5 +1618,90 @@ namespace SUPAI_MP.Controllers
             }
 
         }
+        // ============================================================
+        // DIAGNÓSTICO TEMPORÁRIO DA ESTRUTURA DE ESCALAS
+        // REMOVER DEPOIS DA REPARAÇÃO DA BASE DE DADOS
+        // ============================================================
+
+        [HttpGet("diagnostico-banco")]
+        [Authorize(Roles = "Administrador")]
+        public async Task<IActionResult> DiagnosticoBanco()
+        {
+            var totalEscalas = await _context.Escalas.CountAsync();
+
+            var funcoes = await _context.FuncoesOperacionais
+                .OrderBy(f => f.Id)
+                .Select(f => new
+                {
+                    f.Id,
+                    f.Nome,
+                    f.Ativo
+                })
+                .ToListAsync();
+
+            var escalas = await _context.Escalas
+                .OrderBy(e => e.Id)
+                .Select(e => new
+                {
+                    e.Id,
+                    e.FuncionarioId,
+                    e.Data,
+                    e.FuncaoOperacionalId,
+                    e.EquipaId,
+                    e.SeccaoId,
+                    e.UnidadeOperacionalId
+                })
+                .ToListAsync();
+
+            var funcoesUsadas = escalas
+                .GroupBy(e => e.FuncaoOperacionalId)
+                .Select(g => new
+                {
+                    FuncaoOperacionalId = g.Key,
+                    Quantidade = g.Count()
+                })
+                .OrderBy(x => x.FuncaoOperacionalId)
+                .ToList();
+
+            var funcoesInvalidas = escalas
+                .Where(e =>
+                    e.FuncaoOperacionalId <= 0 ||
+                    !funcoes.Any(f => f.Id == e.FuncaoOperacionalId))
+                .Select(e => new
+                {
+                    e.Id,
+                    e.FuncionarioId,
+                    e.Data,
+                    e.FuncaoOperacionalId
+                })
+                .ToList();
+
+            var lotacoes = await _context.LotacoesFuncionarios
+                .Where(l => l.Ativo)
+                .OrderBy(l => l.FuncionarioId)
+                .Select(l => new
+                {
+                    l.Id,
+                    l.FuncionarioId,
+                    l.FuncaoOperacionalId,
+                    l.DataInicio,
+                    l.DataFim,
+                    l.Ativo
+                })
+                .ToListAsync();
+
+            return Ok(new
+            {
+                totalEscalas,
+
+                funcoes,
+
+                funcoesUsadas,
+
+                funcoesInvalidas,
+
+                lotacoesAtivas = lotacoes
+            });
+        }
     }
 }
