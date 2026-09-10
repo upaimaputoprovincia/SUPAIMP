@@ -296,6 +296,53 @@ namespace supai_mp.Data
                 .HasForeignKey(g => g.TipoTurnoId)
                 .OnDelete(DeleteBehavior.Restrict);
 
+            // =========================================================
+            // ESCALA -> SECCAO
+            // =========================================================
+
+            modelBuilder.Entity<Escala>()
+                .HasOne(e => e.Seccao)
+                .WithMany()
+                .HasForeignKey(e => e.SeccaoId)
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.Restrict);
+
+
+            // =========================================================
+            // ESCALA -> UNIDADE OPERACIONAL
+            // =========================================================
+
+            modelBuilder.Entity<Escala>()
+                .HasOne(e => e.UnidadeOperacional)
+                .WithMany()
+                .HasForeignKey(e => e.UnidadeOperacionalId)
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.Restrict);
+
+
+            // =========================================================
+            // ESCALA -> EQUIPA
+            // =========================================================
+
+            modelBuilder.Entity<Escala>()
+                .HasOne(e => e.Equipa)
+                .WithMany()
+                .HasForeignKey(e => e.EquipaId)
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.Restrict);
+
+
+            // =========================================================
+            // ESCALA -> FUNCAO OPERACIONAL
+            // =========================================================
+
+            modelBuilder.Entity<Escala>()
+                .HasOne(e => e.FuncaoOperacional)
+                .WithMany()
+                .HasForeignKey(e => e.FuncaoOperacionalId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+
             // Evita duplicar a mesma ordem de rotação
             // dentro da mesma unidade operacional.
             modelBuilder.Entity<GrupoEscala>()
