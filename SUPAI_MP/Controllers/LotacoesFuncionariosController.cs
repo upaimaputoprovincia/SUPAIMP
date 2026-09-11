@@ -1031,6 +1031,65 @@ namespace supai_mp.Controllers
         }
 
         // ============================================================
+        // PATCH — RETIRAR FUNCIONÁRIO DA EQUIPA / LOTAÇÃO
+        // ============================================================
+        [HttpPatch("funcionario/{funcionarioId:int}/retirar")]
+        [Authorize(Roles = "Administrador")]
+        public async Task<IActionResult> Retirar(int funcionarioId)
+        {
+            // --------------------------------------------------------
+            // VERIFICAR FUNCIONÁRIO
+            // --------------------------------------------------------
+            var funcionarioExiste = await _context.Funcionarios
+                .AnyAsync(x => x.Id == funcionarioId);
+
+            if (!funcionarioExiste)
+            {
+                return NotFound(new
+                {
+                    mensagem = "Funcionário não encontrado."
+                });
+            }
+
+            // --------------------------------------------------------
+            // LOCALIZAR LOTAÇÃO ATIVA
+            // --------------------------------------------------------
+            var lotacaoAtual = await _context.LotacoesFuncionarios
+                .FirstOrDefaultAsync(x =>
+                    x.FuncionarioId == funcionarioId &&
+                    x.Ativo);
+
+            if (lotacaoAtual == null)
+            {
+                return BadRequest(new
+                {
+                    mensagem =
+                        "O funcionário não possui uma lotação ativa."
+                });
+            }
+
+            // --------------------------------------------------------
+            // ENCERRAR LOTAÇÃO
+            // --------------------------------------------------------
+            lotacaoAtual.Ativo = false;
+            lotacaoAtual.DataFim = DateTime.Now;
+
+            await _context.SaveChangesAsync();
+
+            return Ok(new
+            {
+                mensagem =
+                    "Funcionário retirado da equipa com sucesso.",
+
+                funcionarioId = funcionarioId,
+
+                lotacaoId = lotacaoAtual.Id,
+
+                dataFim = lotacaoAtual.DataFim
+            });
+        }
+
+        // ============================================================
         // DELETE — REMOVER LOTAÇÃO
         // ============================================================
         [HttpDelete("{id:int}")]
