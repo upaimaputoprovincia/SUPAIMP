@@ -1,4 +1,6 @@
 ﻿using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Serialization;
+using supai_mp.Models.Organizacao;
 
 namespace supai_mp.Models
 {
@@ -118,6 +120,11 @@ namespace supai_mp.Models
     {
         public int Id { get; set; }
 
+        public int? SeccaoId { get; set; }
+
+        [JsonIgnore]
+        public Seccao Seccao { get; set; } = null!;
+
         [Required]
         [StringLength(150)]
         public string NomeCompleto { get; set; } = string.Empty;
@@ -181,5 +188,7 @@ namespace supai_mp.Models
         public DateTime DataCadastro { get; set; } = DateTime.Now;
 
         public ICollection<Ferias> Ferias { get; set; } = new List<Ferias>();
+
+       
     }
 }

@@ -31,6 +31,15 @@ namespace supai_mp.Data
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
+            // =========================================================
+            // SECCAO -> FUNCIONARIOS
+            // =========================================================
+
+            modelBuilder.Entity<Funcionario>()
+                 .HasOne(f => f.Seccao)
+                 .WithMany(s => s.Funcionarios)
+                 .HasForeignKey(f => f.SeccaoId)
+                 .OnDelete(DeleteBehavior.Restrict);
 
             // =========================================================
             // SECCAO -> SECTORES

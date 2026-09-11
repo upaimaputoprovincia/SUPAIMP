@@ -860,6 +860,68 @@ public async Task<IActionResult> AtualizarMinhaFotografia(
             return Ok(acessos);
         }
 
+       
+        // PUT: api/Funcionarios/5/seccao
+        [Authorize(Roles = "Administrador")]
+        [HttpPut("{id}/seccao")]
+        public async Task<IActionResult> AtribuirSeccao(
+            int id,
+            [FromBody] int seccaoId)
+        {
+            // ==========================================
+            // PROCURAR FUNCIONÁRIO
+            // ==========================================
+
+            var funcionario = await _context.Funcionarios
+                .FirstOrDefaultAsync(f => f.Id == id);
+
+            if (funcionario == null)
+            {
+                return NotFound(new
+                {
+                    mensagem = "Funcionário não encontrado."
+                });
+            }
+
+            // ==========================================
+            // VALIDAR SECÇÃO
+            // ==========================================
+
+            var seccao = await _context.Seccoes
+                .FirstOrDefaultAsync(s =>
+                    s.Id == seccaoId &&
+                    s.Ativo);
+
+            if (seccao == null)
+            {
+                return BadRequest(new
+                {
+                    mensagem = "A secção selecionada não existe ou está inativa."
+                });
+            }
+
+            // ==========================================
+            // ATRIBUIR SECÇÃO
+            // ==========================================
+
+            funcionario.SeccaoId = seccaoId;
+
+            await _context.SaveChangesAsync();
+
+            // ==========================================
+            // RESPOSTA
+            // ==========================================
+
+            return Ok(new
+            {
+                mensagem = "Secção atribuída com sucesso.",
+                funcionarioId = funcionario.Id,
+                funcionario = funcionario.NomeCompleto,
+                seccaoId = seccao.Id,
+                seccao = seccao.Nome
+            });
+        }
+
 
 
         // DELETE: api/Funcionarios/5

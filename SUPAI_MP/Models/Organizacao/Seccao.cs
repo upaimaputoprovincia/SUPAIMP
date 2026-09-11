@@ -27,5 +27,10 @@ namespace supai_mp.Models.Organizacao
         [JsonIgnore]
         public ICollection<LotacaoFuncionario> Lotacoes { get; set; }
             = new List<LotacaoFuncionario>();
+
+        // Relação direta entre Secção e Funcionário
+        [JsonIgnore]
+        public ICollection<Funcionario> Funcionarios { get; set; }
+            = new List<Funcionario>();
     }
 }
