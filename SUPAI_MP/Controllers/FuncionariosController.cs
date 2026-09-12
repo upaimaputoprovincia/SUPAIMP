@@ -922,7 +922,85 @@ public async Task<IActionResult> AtualizarMinhaFotografia(
             });
         }
 
+        // ============================================================
+        // FUNCIONÁRIOS SEM SECÇÃO
+        // ============================================================
 
+        // GET: api/Funcionarios/sem-seccao
+        [HttpGet("sem-seccao")]
+        [Authorize(Roles = "Administrador")]
+        public async Task<IActionResult> GetFuncionariosSemSeccao()
+        {
+            var funcionarios = await _context.Funcionarios
+                .AsNoTracking()
+                .Where(f => f.SeccaoId == null)
+                .OrderBy(f => f.NomeCompleto)
+                .Select(f => new
+                {
+                    f.Id,
+                    f.NomeCompleto,
+                    f.Nip,
+                    f.Bi,
+                    f.Nuit,
+                    f.Contacto,
+                    f.Funcao,
+                    f.LocalTrabalho,
+                    f.Estado,
+                    f.FotografiaUrl,
+                    TemUsuario = _context.Usuarios.Any(u => u.FuncionarioId == f.Id),
+                    f.SeccaoId
+                })
+                .ToListAsync();
+
+            return Ok(funcionarios);
+        }
+
+        // ============================================================
+        // FUNCIONÁRIOS JÁ ENQUADRADOS
+        // ============================================================
+
+        // GET: api/Funcionarios/com-seccao
+        [HttpGet("com-seccao")]
+        [Authorize(Roles = "Administrador")]
+        public async Task<IActionResult> GetFuncionariosComSeccao(
+            int? seccaoId = null)
+        {
+            var consulta = _context.Funcionarios
+                .AsNoTracking()
+                .Include(f => f.Seccao)
+                .Where(f => f.SeccaoId != null)
+                .AsQueryable();
+
+            if (seccaoId.HasValue && seccaoId.Value > 0)
+            {
+                consulta = consulta
+                    .Where(f => f.SeccaoId == seccaoId.Value);
+            }
+
+            var funcionarios = await consulta
+                .OrderBy(f => f.Seccao!.Nome)
+                .ThenBy(f => f.NomeCompleto)
+                .Select(f => new
+                {
+                    f.Id,
+                    f.NomeCompleto,
+                    f.Nip,
+                    f.Bi,
+                    f.Nuit,
+                    f.Contacto,
+                    f.Funcao,
+                    f.LocalTrabalho,
+                    f.Estado,
+                    f.FotografiaUrl,
+                    SeccaoId = f.SeccaoId,
+                    Seccao = f.Seccao != null
+                        ? f.Seccao.Nome
+                        : null
+                })
+                .ToListAsync();
+
+            return Ok(funcionarios);
+        }
 
         // DELETE: api/Funcionarios/5
         [Authorize(Roles = "Administrador")]
