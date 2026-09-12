@@ -35,21 +35,42 @@ namespace supai_mp.Models
         AVÔ,
         AVÓ,
         SOBRINHO,
-        SOBRINHA
+        SOBRINHA,
+        PRIMO,
+        PRIMA
     }
     public enum Categoria
     {
+        [Display(Name = "GUARDA DA POLÍCIA")]
         GUA,
+        [Display(Name = "2º CABO DA POLÍCIA")]
         SC,
+        [Display(Name = "1º CABO DA POLÍCIA")]
         PC,
+        [Display(Name = "SARGENTO DA POLÍCIA")]
         SAR,
+        [Display(Name = "SARGENTO PRINCIPAL DA POLÍCIA")]
         SAP,
+        [Display(Name = "SUBINSPECTOR DA POLÍCIA")]
         SUB,
+        [Display(Name = "INSPECTOR DA POLÍCIA")]
         INS,
+        [Display(Name = "INSPECTOR PRINCIPAL DA POLÍCIA")]
         INP,
+        [Display(Name = "ADJUNTO SUPERINTENDENTE DA POLÍCIA")]
         ASP,
+        [Display(Name = "SUPERINTENDENTE DA POLÍCIA")]
         SUP,
-        SPP
+        [Display(Name = "SUPERINTENDENTE PRINCIPAL DA POLÍCIA")]
+        SPP,
+        [Display(Name = "INSPECTOR-GERAL DA POLÍCIA")]
+        IPG,
+        [Display(Name = "COMISSÁRIO DA POLÍCIA")]
+        COM,
+        [Display(Name = "1º AJUNTO DE COMISSÁRIO DA POLÍCIA")]
+        PAC,
+        [Display(Name = "ADJUNTO DE COMISSÁRIO DA POLÍCIA")]
+        AJC
     }
     public enum EstadoFuncionario
     {
@@ -57,6 +78,7 @@ namespace supai_mp.Models
         TRANSFERIDO,
         EXPULSO,
         FERRIAS,
+        FORMAÇÃO,
         AQUARTELADO,
         INACTIVO,
         OBIPTO
