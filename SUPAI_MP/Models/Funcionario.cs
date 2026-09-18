@@ -67,9 +67,9 @@ namespace supai_mp.Models
         IPG,
         [Display(Name = "COMISSÁRIO DA POLÍCIA")]
         COM,
-        [Display(Name = "1º AJUNTO DE COMISSÁRIO DA POLÍCIA")]
+        [Display(Name = "1º AJUNTO COMISSÁRIO DA POLÍCIA")]
         PAC,
-        [Display(Name = "ADJUNTO DE COMISSÁRIO DA POLÍCIA")]
+        [Display(Name = "ADJUNTO COMISSÁRIO DA POLÍCIA")]
         AJC
     }
     public enum EstadoFuncionario

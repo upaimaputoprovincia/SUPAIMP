@@ -553,13 +553,21 @@ public async Task<IActionResult> AtualizarMinhaFotografia(
             });
         }
 
+        // ============================================================
         // GET: api/Funcionarios/paginado
+        // LISTAGEM PAGINADA + ESTATÍSTICAS GERAIS
+        // ============================================================
+
         [Authorize(Roles = "Administrador")]
         [HttpGet("paginado")]
         public async Task<IActionResult> GetFuncionariosPaginado(
             [FromQuery] int pagina = 1,
             [FromQuery] int tamanhoPagina = 20)
         {
+            // ========================================================
+            // VALIDAÇÃO DA PAGINAÇÃO
+            // ========================================================
+
             if (pagina < 1)
                 pagina = 1;
 
@@ -569,50 +577,221 @@ public async Task<IActionResult> AtualizarMinhaFotografia(
             if (tamanhoPagina > 100)
                 tamanhoPagina = 100;
 
-            var totalRegistros = await _context.Funcionarios.CountAsync();
 
-            var funcionarios = await _context.Funcionarios
-                .OrderBy(f => f.NomeCompleto)
-                .Skip((pagina - 1) * tamanhoPagina)
-                .Take(tamanhoPagina)
-                .Select(f => new
-                {
-                    f.Id,
-                    f.NomeCompleto,
-                    f.Nip,
-                    f.Bi,
-                    f.Nuit,
-                    f.G,
-                    f.estado_civil,
-                    f.nivelAcademico,
-                    f.grauParentesco,
-                    f.Contacto,
-                    f.C_Alternativo,
-                    f.C_Familiar,
-                    f.DataNascimento,
-                    f.DataIngresso,
-                    f.LocalTrabalho,
-                    f.Bairro,
-                    f.Quarterao_N,
-                    f.Casa_N,
-                    f.Categoria,
-                    f.Funcao,
-                    f.Estado,
-                    f.FotografiaUrl,
-                    TemUsuario = _context.Usuarios
-                        .Any(u => u.FuncionarioId == f.Id)
-                })
-                .ToListAsync();
+            // ========================================================
+            // ESTATÍSTICAS GERAIS
+            // ========================================================
 
-            var totalPaginas = (int)Math.Ceiling(
-                totalRegistros / (double)tamanhoPagina);
+            var totalRegistros =
+                await _context.Funcionarios.CountAsync();
+
+
+            // ========================================================
+            // TOTAL MASCULINO
+            // ========================================================
+
+            var totalMasculino =
+                await _context.Funcionarios
+                    .CountAsync(f => f.G == Genero.M);
+
+
+            // ========================================================
+            // TOTAL FEMININO
+            // ========================================================
+
+            var totalFeminino =
+                await _context.Funcionarios
+                    .CountAsync(f => f.G == Genero.F);
+
+
+            // ========================================================
+            // TOTAL DE FUNCIONÁRIOS ACTIVOS
+            // Estado = 0 → ACTIVO
+            // ========================================================
+
+            var totalAtivos =
+                await _context.Funcionarios
+                    .CountAsync(f => f.Estado == 0);
+
+
+            // ========================================================
+            // TOTAL POR CATEGORIA
+            // ========================================================
+
+            var totaisPorCategoria =
+                await _context.Funcionarios
+                    .GroupBy(f => f.Categoria)
+                    .Select(g => new
+                    {
+                        Categoria = g.Key,
+                        Total = g.Count()
+                    })
+                    .ToDictionaryAsync(
+                        x => x.Categoria,
+                        x => x.Total
+                    );
+
+
+            // ========================================================
+            // TOTAL DE PÁGINAS
+            // ========================================================
+
+            var totalPaginas =
+                (int)Math.Ceiling(
+                    totalRegistros /
+                    (double)tamanhoPagina
+                );
+
+
+            // ========================================================
+            // CORRIGIR PÁGINA CASO ULTRAPASSE O TOTAL
+            // ========================================================
+
+            if (totalPaginas > 0 && pagina > totalPaginas)
+            {
+                pagina = totalPaginas;
+            }
+
+
+            // ========================================================
+            // FUNCIONÁRIOS DA PÁGINA ACTUAL
+            // ========================================================
+
+            var funcionarios =
+                await _context.Funcionarios
+
+                    .AsNoTracking()
+
+                    .OrderBy(f => f.NomeCompleto)
+
+                    .Skip((pagina - 1) * tamanhoPagina)
+
+                    .Take(tamanhoPagina)
+
+                    .Select(f => new
+                    {
+                        // =================================================
+                        // IDENTIFICAÇÃO
+                        // =================================================
+
+                        f.Id,
+                        f.NomeCompleto,
+                        f.Nip,
+                        f.Bi,
+                        f.Nuit,
+
+
+                        // =================================================
+                        // DADOS PESSOAIS
+                        // =================================================
+
+                        Genero = (int)f.G,
+
+                        f.estado_civil,
+
+                        f.nivelAcademico,
+
+                        f.grauParentesco,
+
+                        f.DataNascimento,
+
+
+                        // =================================================
+                        // DADOS PROFISSIONAIS
+                        // =================================================
+
+                        f.Categoria,
+
+                        f.Funcao,
+
+                        f.DataIngresso,
+
+                        f.LocalTrabalho,
+
+
+                        // =================================================
+                        // CONTACTOS
+                        // =================================================
+
+                        f.Contacto,
+
+                        f.C_Alternativo,
+
+                        f.C_Familiar,
+
+
+                        // =================================================
+                        // LOCALIZAÇÃO
+                        // =================================================
+
+                        f.Bairro,
+
+                        f.Quarterao_N,
+
+                        f.Casa_N,
+
+
+                        // =================================================
+                        // ESTADO
+                        // =================================================
+
+                        f.Estado,
+
+
+                        // =================================================
+                        // FOTOGRAFIA
+                        // =================================================
+
+                        f.FotografiaUrl,
+
+
+                        // =================================================
+                        // ORGANIZAÇÃO
+                        // =================================================
+
+                        SeccaoId = f.SeccaoId,
+
+                        SeccaoNome =
+                            f.Seccao != null
+                                ? f.Seccao.Nome
+                                : "Sem secção",
+
+
+                        // =================================================
+                        // ACESSO AO SISTEMA
+                        // =================================================
+
+                        TemUsuario =
+                            _context.Usuarios
+                                .Any(u =>
+                                    u.FuncionarioId == f.Id)
+                    })
+
+                    .ToListAsync();
+
+
+            // ========================================================
+            // RESPOSTA
+            // ========================================================
 
             return Ok(new
             {
                 pagina,
+
                 tamanhoPagina,
+
                 totalRegistros,
+
                 totalPaginas,
+
+                totalMasculino,
+
+                totalFeminino,
+
+                totalAtivos,
+
+                totaisPorCategoria,
+
                 dados = funcionarios
             });
         }
