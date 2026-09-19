@@ -561,8 +561,9 @@ public async Task<IActionResult> AtualizarMinhaFotografia(
         [Authorize(Roles = "Administrador")]
         [HttpGet("paginado")]
         public async Task<IActionResult> GetFuncionariosPaginado(
-            [FromQuery] int pagina = 1,
-            [FromQuery] int tamanhoPagina = 20)
+     [FromQuery] int pagina = 1,
+     [FromQuery] int tamanhoPagina = 20,
+     [FromQuery] string? nome = null)
         {
             // ========================================================
             // VALIDAÇÃO DA PAGINAÇÃO
@@ -579,11 +580,40 @@ public async Task<IActionResult> AtualizarMinhaFotografia(
 
 
             // ========================================================
-            // ESTATÍSTICAS GERAIS
+            // NORMALIZAR PESQUISA
+            // ========================================================
+
+            nome = nome?.Trim();
+
+
+            // ========================================================
+            // QUERY BASE
+            // ========================================================
+
+            var query =
+                _context.Funcionarios
+                    .AsNoTracking()
+                    .AsQueryable();
+
+
+            // ========================================================
+            // PESQUISA GLOBAL POR NOME
+            // ========================================================
+
+            if (!string.IsNullOrWhiteSpace(nome))
+            {
+                query = query.Where(f =>
+                    f.NomeCompleto != null &&
+                    f.NomeCompleto.Contains(nome));
+            }
+
+
+            // ========================================================
+            // TOTAL DE REGISTOS
             // ========================================================
 
             var totalRegistros =
-                await _context.Funcionarios.CountAsync();
+                await query.CountAsync();
 
 
             // ========================================================
@@ -591,8 +621,8 @@ public async Task<IActionResult> AtualizarMinhaFotografia(
             // ========================================================
 
             var totalMasculino =
-                await _context.Funcionarios
-                    .CountAsync(f => f.G == Genero.M);
+                await query.CountAsync(
+                    f => f.G == Genero.M);
 
 
             // ========================================================
@@ -600,8 +630,8 @@ public async Task<IActionResult> AtualizarMinhaFotografia(
             // ========================================================
 
             var totalFeminino =
-                await _context.Funcionarios
-                    .CountAsync(f => f.G == Genero.F);
+                await query.CountAsync(
+                    f => f.G == Genero.F);
 
 
             // ========================================================
@@ -610,8 +640,8 @@ public async Task<IActionResult> AtualizarMinhaFotografia(
             // ========================================================
 
             var totalAtivos =
-                await _context.Funcionarios
-                    .CountAsync(f => f.Estado == 0);
+                await query.CountAsync(
+                    f => f.Estado == 0);
 
 
             // ========================================================
@@ -619,17 +649,14 @@ public async Task<IActionResult> AtualizarMinhaFotografia(
             // ========================================================
 
             var totaisPorCategoria =
-                await _context.Funcionarios
+                await query
                     .GroupBy(f => f.Categoria)
                     .Select(g => new
                     {
                         Categoria = g.Key,
                         Total = g.Count()
                     })
-                    .ToDictionaryAsync(
-                        x => x.Categoria,
-                        x => x.Total
-                    );
+                    .ToListAsync();
 
 
             // ========================================================
@@ -644,12 +671,17 @@ public async Task<IActionResult> AtualizarMinhaFotografia(
 
 
             // ========================================================
-            // CORRIGIR PÁGINA CASO ULTRAPASSE O TOTAL
+            // CORRIGIR PÁGINA
             // ========================================================
 
             if (totalPaginas > 0 && pagina > totalPaginas)
             {
                 pagina = totalPaginas;
+            }
+
+            if (totalPaginas == 0)
+            {
+                pagina = 1;
             }
 
 
@@ -658,13 +690,14 @@ public async Task<IActionResult> AtualizarMinhaFotografia(
             // ========================================================
 
             var funcionarios =
-                await _context.Funcionarios
-
-                    .AsNoTracking()
+                await query
 
                     .OrderBy(f => f.NomeCompleto)
 
-                    .Skip((pagina - 1) * tamanhoPagina)
+                    .Skip(
+                        (pagina - 1) *
+                        tamanhoPagina
+                    )
 
                     .Take(tamanhoPagina)
 
@@ -688,11 +721,8 @@ public async Task<IActionResult> AtualizarMinhaFotografia(
                         Genero = (int)f.G,
 
                         f.estado_civil,
-
                         f.nivelAcademico,
-
                         f.grauParentesco,
-
                         f.DataNascimento,
 
 
@@ -701,11 +731,8 @@ public async Task<IActionResult> AtualizarMinhaFotografia(
                         // =================================================
 
                         f.Categoria,
-
                         f.Funcao,
-
                         f.DataIngresso,
-
                         f.LocalTrabalho,
 
 
@@ -714,9 +741,7 @@ public async Task<IActionResult> AtualizarMinhaFotografia(
                         // =================================================
 
                         f.Contacto,
-
                         f.C_Alternativo,
-
                         f.C_Familiar,
 
 
@@ -725,9 +750,7 @@ public async Task<IActionResult> AtualizarMinhaFotografia(
                         // =================================================
 
                         f.Bairro,
-
                         f.Quarterao_N,
-
                         f.Casa_N,
 
 
@@ -771,31 +794,58 @@ public async Task<IActionResult> AtualizarMinhaFotografia(
 
 
             // ========================================================
+            // CONVERTER CATEGORIAS PARA SIGLAS
+            // ========================================================
+
+            var categorias =
+    totaisPorCategoria
+        .ToDictionary(
+            x => x.Categoria switch
+            {
+                Categoria.GUA => "GUA",
+                Categoria.SC => "SC",
+                Categoria.PC => "PC",
+                Categoria.SAR => "SAR",
+                Categoria.SAP => "SAP",
+                Categoria.SUB => "SUB",
+                Categoria.INS => "INS",
+                Categoria.INP => "INP",
+                Categoria.ASP => "ASP",
+                Categoria.SUP => "SUP",
+                Categoria.SPP => "SPP",
+                Categoria.IPG => "IGP",
+                Categoria.COM => "COM",
+                Categoria.AJC => "AJC",
+                Categoria.PAC => "PAC",
+                _ => x.Categoria.ToString()
+            },
+            x => x.Total
+        );
+
+
+            // ========================================================
             // RESPOSTA
             // ========================================================
 
             return Ok(new
             {
                 pagina,
-
                 tamanhoPagina,
 
-                totalRegistros,
+                nome,
 
+                totalRegistros,
                 totalPaginas,
 
                 totalMasculino,
-
                 totalFeminino,
-
                 totalAtivos,
 
-                totaisPorCategoria,
+                totaisPorCategoria = categorias,
 
                 dados = funcionarios
             });
         }
-
         // POST: api/Funcionarios
         [Authorize(Roles = "Administrador")]
         [HttpPost]
