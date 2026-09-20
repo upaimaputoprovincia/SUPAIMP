@@ -17,6 +17,7 @@ namespace supai_mp.Controllers
         // CONFIGURAÇÃO DA PROTECÇÃO DE OBJECTOS
         // ============================================================
         private const int SECCAO_PROTECCAO_OBJECTOS = 7;
+        private const int MINIMO_FUNCIONARIOS_POSTO = 3;
 
         public LotacoesFuncionariosController(ApplicationDbContext context)
         {
@@ -127,6 +128,36 @@ namespace supai_mp.Controllers
             public string? Motivo { get; set; }
 
             public string? Observacao { get; set; }
+        }
+
+        // ============================================================
+        // DTO — ESTADO DO EFECTIVO DE UM POSTO
+        // ============================================================
+        public class EstadoPostoRespostaDto
+        {
+            public int PostoId { get; set; }
+
+            public string Posto { get; set; } = string.Empty;
+
+            public string? Codigo { get; set; }
+
+            public int? UnidadeOperacionalId { get; set; }
+
+            public string? UnidadeOperacional { get; set; }
+
+            public int MinimoFuncionarios { get; set; }
+
+            public int TotalFuncionarios { get; set; }
+
+            public int FuncionariosEmFalta { get; set; }
+
+            public int ExcedenteFuncionarios { get; set; }
+
+            public bool EfetivoCompleto { get; set; }
+
+            public bool AcimaDoMinimo { get; set; }
+
+            public string Estado { get; set; } = string.Empty;
         }
 
         // ============================================================
@@ -357,6 +388,111 @@ namespace supai_mp.Controllers
         }
 
         // ============================================================
+        // MÉTODO AUXILIAR — CALCULAR ESTADO DO POSTO
+        // ============================================================
+        private async Task<EstadoPostoRespostaDto?> ObterEstadoPostoAsync(
+            int postoId)
+        {
+            // --------------------------------------------------------
+            // LOCALIZAR POSTO
+            // --------------------------------------------------------
+            var posto = await _context.Postos
+                .AsNoTracking()
+                .Include(x => x.UnidadeOperacional)
+                .FirstOrDefaultAsync(x => x.Id == postoId);
+
+            if (posto == null)
+            {
+                return null;
+            }
+
+            // --------------------------------------------------------
+            // CONTAR FUNCIONÁRIOS ACTIVOS NO POSTO
+            // --------------------------------------------------------
+            var totalFuncionarios = await _context.LotacoesFuncionarios
+                .AsNoTracking()
+                .CountAsync(x =>
+                    x.PostoId == postoId &&
+                    x.Ativo);
+
+            // --------------------------------------------------------
+            // CALCULAR VAGAS
+            // --------------------------------------------------------
+            var funcionariosEmFalta =
+                Math.Max(
+                    0,
+                    MINIMO_FUNCIONARIOS_POSTO - totalFuncionarios);
+
+            // --------------------------------------------------------
+            // CALCULAR EXCEDENTE
+            // --------------------------------------------------------
+            var excedenteFuncionarios =
+                Math.Max(
+                    0,
+                    totalFuncionarios - MINIMO_FUNCIONARIOS_POSTO);
+
+            // --------------------------------------------------------
+            // DETERMINAR ESTADO
+            // --------------------------------------------------------
+            string estado;
+
+            if (totalFuncionarios == 0)
+            {
+                estado = "Sem efectivos";
+            }
+            else if (totalFuncionarios < MINIMO_FUNCIONARIOS_POSTO)
+            {
+                estado = "Incompleto";
+            }
+            else if (totalFuncionarios == MINIMO_FUNCIONARIOS_POSTO)
+            {
+                estado = "Completo";
+            }
+            else
+            {
+                estado = "Acima do mínimo";
+            }
+
+            return new EstadoPostoRespostaDto
+            {
+                PostoId = posto.Id,
+
+                Posto = posto.Nome,
+
+                Codigo = posto.Codigo,
+
+                UnidadeOperacionalId =
+                    posto.UnidadeOperacionalId,
+
+                UnidadeOperacional =
+                    posto.UnidadeOperacional?.Nome,
+
+                MinimoFuncionarios =
+                    MINIMO_FUNCIONARIOS_POSTO,
+
+                TotalFuncionarios =
+                    totalFuncionarios,
+
+                FuncionariosEmFalta =
+                    funcionariosEmFalta,
+
+                ExcedenteFuncionarios =
+                    excedenteFuncionarios,
+
+                EfetivoCompleto =
+                    totalFuncionarios >=
+                    MINIMO_FUNCIONARIOS_POSTO,
+
+                AcimaDoMinimo =
+                    totalFuncionarios >
+                    MINIMO_FUNCIONARIOS_POSTO,
+
+                Estado =
+                    estado
+            };
+        }
+
+        // ============================================================
         // GET — TODAS AS LOTAÇÕES
         // ============================================================
         [HttpGet]
@@ -553,6 +689,64 @@ namespace supai_mp.Controllers
                 .ToListAsync();
 
             return Ok(lotacoes.Select(ParaDto));
+        }
+
+        // ============================================================
+        // GET — ESTADO DO EFECTIVO DE UM POSTO
+        // ============================================================
+        [HttpGet("posto/{postoId:int}/efetivo")]
+        public async Task<ActionResult<EstadoPostoRespostaDto>>
+            GetEstadoPosto(int postoId)
+        {
+            // --------------------------------------------------------
+            // LOCALIZAR POSTO
+            // --------------------------------------------------------
+            var posto = await _context.Postos
+                .AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == postoId);
+
+            if (posto == null)
+            {
+                return NotFound(new
+                {
+                    mensagem = "Posto não encontrado."
+                });
+            }
+
+            // --------------------------------------------------------
+            // SE FOR DA PROTECÇÃO DE OBJECTOS,
+            // VALIDAR A ESTRUTURA DO POSTO
+            // --------------------------------------------------------
+            if (posto.SeccaoId == SECCAO_PROTECCAO_OBJECTOS)
+            {
+                var erroPosto = await ValidarPostoAsync(
+                    posto.Id,
+                    posto.SeccaoId,
+                    posto.UnidadeOperacionalId);
+
+                if (erroPosto != null)
+                {
+                    return BadRequest(new
+                    {
+                        mensagem = erroPosto
+                    });
+                }
+            }
+
+            // --------------------------------------------------------
+            // CALCULAR ESTADO
+            // --------------------------------------------------------
+            var estado = await ObterEstadoPostoAsync(postoId);
+
+            if (estado == null)
+            {
+                return NotFound(new
+                {
+                    mensagem = "Não foi possível obter o estado do posto."
+                });
+            }
+
+            return Ok(estado);
         }
 
         // ============================================================
