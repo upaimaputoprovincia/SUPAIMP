@@ -13,6 +13,11 @@ namespace supai_mp.Controllers
     {
         private readonly ApplicationDbContext _context;
 
+        // ============================================================
+        // CONFIGURAÇÃO DA PROTECÇÃO DE OBJECTOS
+        // ============================================================
+        private const int SECCAO_PROTECCAO_OBJECTOS = 7;
+
         public LotacoesFuncionariosController(ApplicationDbContext context)
         {
             _context = context;
@@ -181,10 +186,182 @@ namespace supai_mp.Controllers
         }
 
         // ============================================================
+        // VALIDAR POSTO
+        // ============================================================
+        private async Task<string?> ValidarPostoAsync(
+            int? postoId,
+            int? seccaoId,
+            int? unidadeOperacionalId)
+        {
+            // --------------------------------------------------------
+            // Se não foi indicado posto, não há nada para validar.
+            // Isto permite lotações que não utilizem postos.
+            // --------------------------------------------------------
+            if (!postoId.HasValue)
+            {
+                return null;
+            }
+
+            // --------------------------------------------------------
+            // LOCALIZAR POSTO
+            // --------------------------------------------------------
+            var posto = await _context.Postos
+                .AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == postoId.Value);
+
+            if (posto == null)
+            {
+                return "Posto não encontrado.";
+            }
+
+            // --------------------------------------------------------
+            // POSTO TEM DE ESTAR ACTIVO
+            // --------------------------------------------------------
+            if (!posto.Ativo)
+            {
+                return "O posto selecionado está inativo.";
+            }
+
+            // --------------------------------------------------------
+            // VALIDAR SECÇÃO
+            // --------------------------------------------------------
+            if (seccaoId.HasValue &&
+                posto.SeccaoId != seccaoId.Value)
+            {
+                return "O posto selecionado não pertence à secção indicada.";
+            }
+
+            // --------------------------------------------------------
+            // VALIDAR UNIDADE OPERACIONAL
+            // --------------------------------------------------------
+            if (unidadeOperacionalId.HasValue &&
+                posto.UnidadeOperacionalId != unidadeOperacionalId.Value)
+            {
+                return "O posto selecionado não pertence à unidade operacional indicada.";
+            }
+
+            // ========================================================
+            // REGRAS ESPECÍFICAS DA PROTECÇÃO DE OBJECTOS
+            // ========================================================
+            if (seccaoId == SECCAO_PROTECCAO_OBJECTOS)
+            {
+                // ----------------------------------------------------
+                // POSTO DE PO DEVE TER PELOTÃO
+                // ----------------------------------------------------
+                if (!posto.UnidadeOperacionalId.HasValue)
+                {
+                    return
+                        "Na Protecção de Objectos, o posto deve estar " +
+                        "associado a um pelotão.";
+                }
+
+                // ----------------------------------------------------
+                // CARREGAR PELOTÃO
+                // ----------------------------------------------------
+                var pelotao = await _context.UnidadesOperacionais
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(x =>
+                        x.Id == posto.UnidadeOperacionalId.Value);
+
+                if (pelotao == null)
+                {
+                    return
+                        "O pelotão associado ao posto não foi encontrado.";
+                }
+
+                // ----------------------------------------------------
+                // PELOTÃO ACTIVO
+                // ----------------------------------------------------
+                if (!pelotao.Ativo)
+                {
+                    return
+                        "O pelotão associado ao posto está inativo.";
+                }
+
+                // ----------------------------------------------------
+                // PELOTÃO DEVE PERTENCER À PO
+                // ----------------------------------------------------
+                if (pelotao.SeccaoId != SECCAO_PROTECCAO_OBJECTOS)
+                {
+                    return
+                        "O pelotão associado ao posto não pertence à " +
+                        "Protecção de Objectos.";
+                }
+
+                // ----------------------------------------------------
+                // PELOTÃO DEVE SER DO TIPO PELOTÃO
+                // ----------------------------------------------------
+                if (pelotao.Tipo !=
+                    UnidadeOperacional.TipoUnidadeOperacional.Pelotao)
+                {
+                    return
+                        "A unidade operacional associada ao posto não é " +
+                        "um pelotão válido.";
+                }
+
+                // ----------------------------------------------------
+                // PELOTÃO DEVE TER COMPANHIA PAI
+                // ----------------------------------------------------
+                if (!pelotao.UnidadePaiId.HasValue)
+                {
+                    return
+                        "O pelotão associado ao posto não possui uma " +
+                        "companhia pai.";
+                }
+
+                // ----------------------------------------------------
+                // CARREGAR COMPANHIA
+                // ----------------------------------------------------
+                var companhia = await _context.UnidadesOperacionais
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(x =>
+                        x.Id == pelotao.UnidadePaiId.Value);
+
+                if (companhia == null)
+                {
+                    return
+                        "A companhia associada ao pelotão não foi encontrada.";
+                }
+
+                // ----------------------------------------------------
+                // COMPANHIA ACTIVA
+                // ----------------------------------------------------
+                if (!companhia.Ativo)
+                {
+                    return
+                        "A companhia associada ao pelotão está inativa.";
+                }
+
+                // ----------------------------------------------------
+                // COMPANHIA DEVE PERTENCER À PO
+                // ----------------------------------------------------
+                if (companhia.SeccaoId != SECCAO_PROTECCAO_OBJECTOS)
+                {
+                    return
+                        "A companhia associada ao pelotão não pertence à " +
+                        "Protecção de Objectos.";
+                }
+
+                // ----------------------------------------------------
+                // COMPANHIA DEVE SER DO TIPO COMPANHIA
+                // ----------------------------------------------------
+                if (companhia.Tipo !=
+                    UnidadeOperacional.TipoUnidadeOperacional.Companhia)
+                {
+                    return
+                        "A unidade pai do pelotão não é uma companhia válida.";
+                }
+            }
+
+            return null;
+        }
+
+        // ============================================================
         // GET — TODAS AS LOTAÇÕES
         // ============================================================
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<LotacaoFuncionarioRespostaDto>>> GetTodas()
+        public async Task<ActionResult<IEnumerable<LotacaoFuncionarioRespostaDto>>>
+            GetTodas()
         {
             var lotacoes = await _context.LotacoesFuncionarios
                 .AsNoTracking()
@@ -207,7 +384,8 @@ namespace supai_mp.Controllers
         // GET — LOTAÇÃO POR ID
         // ============================================================
         [HttpGet("{id:int}")]
-        public async Task<ActionResult<LotacaoFuncionarioRespostaDto>> GetPorId(int id)
+        public async Task<ActionResult<LotacaoFuncionarioRespostaDto>>
+            GetPorId(int id)
         {
             var lotacao = await _context.LotacoesFuncionarios
                 .AsNoTracking()
@@ -233,7 +411,7 @@ namespace supai_mp.Controllers
         }
 
         // ============================================================
-        // GET — LOTAÇÃO ATUAL DE UM FUNCIONÁRIO
+        // GET — TODAS AS LOTAÇÕES DE UM FUNCIONÁRIO
         // ============================================================
         [HttpGet("funcionario/{funcionarioId:int}")]
         public async Task<ActionResult<IEnumerable<LotacaoFuncionarioRespostaDto>>>
@@ -340,7 +518,7 @@ namespace supai_mp.Controllers
         }
 
         // ============================================================
-        // GET — FUNCIONÁRIOS DE UMA UNIDADE/ESCOLTA
+        // GET — FUNCIONÁRIOS DE UMA UNIDADE OPERACIONAL
         // ============================================================
         [HttpGet("unidade/{unidadeOperacionalId:int}")]
         public async Task<ActionResult<IEnumerable<LotacaoFuncionarioRespostaDto>>>
@@ -451,7 +629,8 @@ namespace supai_mp.Controllers
                 {
                     return BadRequest(new
                     {
-                        mensagem = "O sector selecionado não pertence à secção indicada."
+                        mensagem =
+                            "O sector selecionado não pertence à secção indicada."
                     });
                 }
             }
@@ -473,12 +652,21 @@ namespace supai_mp.Controllers
                     });
                 }
 
+                if (!unidade.Ativo)
+                {
+                    return BadRequest(new
+                    {
+                        mensagem = "A unidade operacional selecionada está inativa."
+                    });
+                }
+
                 if (dto.SeccaoId.HasValue &&
                     unidade.SeccaoId != dto.SeccaoId.Value)
                 {
                     return BadRequest(new
                     {
-                        mensagem = "A unidade operacional não pertence à secção indicada."
+                        mensagem =
+                            "A unidade operacional não pertence à secção indicada."
                     });
                 }
             }
@@ -499,12 +687,21 @@ namespace supai_mp.Controllers
                     });
                 }
 
+                if (!equipa.Ativo)
+                {
+                    return BadRequest(new
+                    {
+                        mensagem = "A equipa selecionada está inativa."
+                    });
+                }
+
                 if (dto.UnidadeOperacionalId.HasValue &&
                     equipa.UnidadeOperacionalId != dto.UnidadeOperacionalId.Value)
                 {
                     return BadRequest(new
                     {
-                        mensagem = "A equipa selecionada não pertence à unidade operacional indicada."
+                        mensagem =
+                            "A equipa selecionada não pertence à unidade operacional indicada."
                     });
                 }
 
@@ -513,7 +710,8 @@ namespace supai_mp.Controllers
                 {
                     return BadRequest(new
                     {
-                        mensagem = "A equipa selecionada não pertence ao sector indicado."
+                        mensagem =
+                            "A equipa selecionada não pertence ao sector indicado."
                     });
                 }
             }
@@ -521,51 +719,37 @@ namespace supai_mp.Controllers
             // --------------------------------------------------------
             // POSTO
             // --------------------------------------------------------
-            if (dto.PostoId.HasValue)
+            var erroPosto = await ValidarPostoAsync(
+                dto.PostoId,
+                dto.SeccaoId,
+                dto.UnidadeOperacionalId);
+
+            if (erroPosto != null)
+            {
+                return BadRequest(new
+                {
+                    mensagem = erroPosto
+                });
+            }
+
+            // --------------------------------------------------------
+            // POSTO × SECTOR
+            // --------------------------------------------------------
+            if (dto.PostoId.HasValue &&
+                dto.SectorId.HasValue)
             {
                 var posto = await _context.Postos
-                    .FirstOrDefaultAsync(x => x.Id == dto.PostoId.Value);
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(x =>
+                        x.Id == dto.PostoId.Value);
 
-                if (posto == null)
-                {
-                    return BadRequest(new
-                    {
-                        mensagem = "Posto não encontrado."
-                    });
-                }
-
-                if (!posto.Ativo)
-                {
-                    return BadRequest(new
-                    {
-                        mensagem = "O posto selecionado está inativo."
-                    });
-                }
-
-                if (dto.UnidadeOperacionalId.HasValue &&
-                    posto.UnidadeOperacionalId != dto.UnidadeOperacionalId.Value)
-                {
-                    return BadRequest(new
-                    {
-                        mensagem = "O posto selecionado não pertence à unidade operacional indicada."
-                    });
-                }
-
-                if (dto.SectorId.HasValue &&
+                if (posto != null &&
                     posto.SectorId != dto.SectorId.Value)
                 {
                     return BadRequest(new
                     {
-                        mensagem = "O posto selecionado não pertence ao sector indicado."
-                    });
-                }
-
-                if (dto.SeccaoId.HasValue &&
-                    posto.SeccaoId != dto.SeccaoId.Value)
-                {
-                    return BadRequest(new
-                    {
-                        mensagem = "O posto selecionado não pertence à secção indicada."
+                        mensagem =
+                            "O posto selecionado não pertence ao sector indicado."
                     });
                 }
             }
@@ -576,7 +760,8 @@ namespace supai_mp.Controllers
             if (dto.TipoTurnoId.HasValue)
             {
                 var turno = await _context.TiposTurno
-                    .FirstOrDefaultAsync(x => x.Id == dto.TipoTurnoId.Value);
+                    .FirstOrDefaultAsync(x =>
+                        x.Id == dto.TipoTurnoId.Value);
 
                 if (turno == null)
                 {
@@ -691,6 +876,9 @@ namespace supai_mp.Controllers
                 });
             }
 
+            // --------------------------------------------------------
+            // FUNCIONÁRIO
+            // --------------------------------------------------------
             var funcionarioExiste = await _context.Funcionarios
                 .AnyAsync(x => x.Id == dto.FuncionarioId);
 
@@ -702,6 +890,9 @@ namespace supai_mp.Controllers
                 });
             }
 
+            // --------------------------------------------------------
+            // FUNÇÃO OPERACIONAL
+            // --------------------------------------------------------
             var funcaoExiste = await _context.FuncoesOperacionais
                 .AnyAsync(x => x.Id == dto.FuncaoOperacionalId);
 
@@ -713,6 +904,54 @@ namespace supai_mp.Controllers
                 });
             }
 
+            // --------------------------------------------------------
+            // SECCAO
+            // --------------------------------------------------------
+            if (dto.SeccaoId.HasValue)
+            {
+                var seccaoExiste = await _context.Seccoes
+                    .AnyAsync(x => x.Id == dto.SeccaoId.Value);
+
+                if (!seccaoExiste)
+                {
+                    return BadRequest(new
+                    {
+                        mensagem = "Secção não encontrada."
+                    });
+                }
+            }
+
+            // --------------------------------------------------------
+            // SECTOR
+            // --------------------------------------------------------
+            if (dto.SectorId.HasValue)
+            {
+                var sector = await _context.Sectores
+                    .FirstOrDefaultAsync(x =>
+                        x.Id == dto.SectorId.Value);
+
+                if (sector == null)
+                {
+                    return BadRequest(new
+                    {
+                        mensagem = "Sector não encontrado."
+                    });
+                }
+
+                if (dto.SeccaoId.HasValue &&
+                    sector.SeccaoId != dto.SeccaoId.Value)
+                {
+                    return BadRequest(new
+                    {
+                        mensagem =
+                            "O sector selecionado não pertence à secção indicada."
+                    });
+                }
+            }
+
+            // --------------------------------------------------------
+            // UNIDADE OPERACIONAL
+            // --------------------------------------------------------
             if (dto.UnidadeOperacionalId.HasValue)
             {
                 var unidade = await _context.UnidadesOperacionais
@@ -726,12 +965,35 @@ namespace supai_mp.Controllers
                         mensagem = "Unidade operacional não encontrada."
                     });
                 }
+
+                if (!unidade.Ativo)
+                {
+                    return BadRequest(new
+                    {
+                        mensagem =
+                            "A unidade operacional selecionada está inativa."
+                    });
+                }
+
+                if (dto.SeccaoId.HasValue &&
+                    unidade.SeccaoId != dto.SeccaoId.Value)
+                {
+                    return BadRequest(new
+                    {
+                        mensagem =
+                            "A unidade operacional não pertence à secção indicada."
+                    });
+                }
             }
 
+            // --------------------------------------------------------
+            // EQUIPA
+            // --------------------------------------------------------
             if (dto.EquipaId.HasValue)
             {
                 var equipa = await _context.Equipas
-                    .FirstOrDefaultAsync(x => x.Id == dto.EquipaId.Value);
+                    .FirstOrDefaultAsync(x =>
+                        x.Id == dto.EquipaId.Value);
 
                 if (equipa == null)
                 {
@@ -741,16 +1003,77 @@ namespace supai_mp.Controllers
                     });
                 }
 
-                if (dto.UnidadeOperacionalId.HasValue &&
-                    equipa.UnidadeOperacionalId != dto.UnidadeOperacionalId.Value)
+                if (!equipa.Ativo)
                 {
                     return BadRequest(new
                     {
-                        mensagem = "A equipa não pertence à unidade operacional indicada."
+                        mensagem = "A equipa selecionada está inativa."
+                    });
+                }
+
+                if (dto.UnidadeOperacionalId.HasValue &&
+                    equipa.UnidadeOperacionalId !=
+                    dto.UnidadeOperacionalId.Value)
+                {
+                    return BadRequest(new
+                    {
+                        mensagem =
+                            "A equipa não pertence à unidade operacional indicada."
+                    });
+                }
+
+                if (dto.SectorId.HasValue &&
+                    equipa.SectorId != dto.SectorId.Value)
+                {
+                    return BadRequest(new
+                    {
+                        mensagem =
+                            "A equipa não pertence ao sector indicado."
                     });
                 }
             }
 
+            // --------------------------------------------------------
+            // POSTO
+            // --------------------------------------------------------
+            var erroPosto = await ValidarPostoAsync(
+                dto.PostoId,
+                dto.SeccaoId,
+                dto.UnidadeOperacionalId);
+
+            if (erroPosto != null)
+            {
+                return BadRequest(new
+                {
+                    mensagem = erroPosto
+                });
+            }
+
+            // --------------------------------------------------------
+            // POSTO × SECTOR
+            // --------------------------------------------------------
+            if (dto.PostoId.HasValue &&
+                dto.SectorId.HasValue)
+            {
+                var posto = await _context.Postos
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(x =>
+                        x.Id == dto.PostoId.Value);
+
+                if (posto != null &&
+                    posto.SectorId != dto.SectorId.Value)
+                {
+                    return BadRequest(new
+                    {
+                        mensagem =
+                            "O posto selecionado não pertence ao sector indicado."
+                    });
+                }
+            }
+
+            // --------------------------------------------------------
+            // TIPO DE TURNO
+            // --------------------------------------------------------
             if (dto.TipoTurnoId.HasValue)
             {
                 var turno = await _context.TiposTurno
@@ -774,20 +1097,44 @@ namespace supai_mp.Controllers
                 }
             }
 
+            // --------------------------------------------------------
+            // ACTUALIZAR
+            // --------------------------------------------------------
             lotacao.FuncionarioId = dto.FuncionarioId;
+
             lotacao.SeccaoId = dto.SeccaoId;
+
             lotacao.SectorId = dto.SectorId;
-            lotacao.UnidadeOperacionalId = dto.UnidadeOperacionalId;
-            lotacao.EquipaId = dto.EquipaId;
-            lotacao.PostoId = dto.PostoId;
-            lotacao.FuncaoOperacionalId = dto.FuncaoOperacionalId;
-            lotacao.TipoTurnoId = dto.TipoTurnoId;
-            lotacao.DataInicio = dto.DataInicio ?? lotacao.DataInicio;
-            lotacao.Motivo = dto.Motivo;
-            lotacao.Observacao = dto.Observacao;
+
+            lotacao.UnidadeOperacionalId =
+                dto.UnidadeOperacionalId;
+
+            lotacao.EquipaId =
+                dto.EquipaId;
+
+            lotacao.PostoId =
+                dto.PostoId;
+
+            lotacao.FuncaoOperacionalId =
+                dto.FuncaoOperacionalId;
+
+            lotacao.TipoTurnoId =
+                dto.TipoTurnoId;
+
+            lotacao.DataInicio =
+                dto.DataInicio ?? lotacao.DataInicio;
+
+            lotacao.Motivo =
+                dto.Motivo;
+
+            lotacao.Observacao =
+                dto.Observacao;
 
             await _context.SaveChangesAsync();
 
+            // --------------------------------------------------------
+            // RECARREGAR
+            // --------------------------------------------------------
             var resultado = await _context.LotacoesFuncionarios
                 .AsNoTracking()
                 .Include(x => x.Funcionario)
@@ -813,8 +1160,12 @@ namespace supai_mp.Controllers
                 int funcionarioId,
                 TransferirFuncionarioDto dto)
         {
+            // --------------------------------------------------------
+            // FUNCIONÁRIO
+            // --------------------------------------------------------
             var funcionario = await _context.Funcionarios
-                .FirstOrDefaultAsync(x => x.Id == funcionarioId);
+                .FirstOrDefaultAsync(x =>
+                    x.Id == funcionarioId);
 
             if (funcionario == null)
             {
@@ -824,6 +1175,9 @@ namespace supai_mp.Controllers
                 });
             }
 
+            // --------------------------------------------------------
+            // LOTAÇÃO ACTUAL
+            // --------------------------------------------------------
             var lotacaoAtual = await _context.LotacoesFuncionarios
                 .FirstOrDefaultAsync(x =>
                     x.FuncionarioId == funcionarioId &&
@@ -843,7 +1197,8 @@ namespace supai_mp.Controllers
             // VALIDAR FUNÇÃO
             // --------------------------------------------------------
             var funcaoExiste = await _context.FuncoesOperacionais
-                .AnyAsync(x => x.Id == dto.FuncaoOperacionalId);
+                .AnyAsync(x =>
+                    x.Id == dto.FuncaoOperacionalId);
 
             if (!funcaoExiste)
             {
@@ -854,19 +1209,84 @@ namespace supai_mp.Controllers
             }
 
             // --------------------------------------------------------
+            // VALIDAR SECÇÃO
+            // --------------------------------------------------------
+            if (dto.SeccaoId.HasValue)
+            {
+                var seccaoExiste = await _context.Seccoes
+                    .AnyAsync(x =>
+                        x.Id == dto.SeccaoId.Value);
+
+                if (!seccaoExiste)
+                {
+                    return BadRequest(new
+                    {
+                        mensagem = "Secção não encontrada."
+                    });
+                }
+            }
+
+            // --------------------------------------------------------
+            // VALIDAR SECTOR
+            // --------------------------------------------------------
+            if (dto.SectorId.HasValue)
+            {
+                var sector = await _context.Sectores
+                    .FirstOrDefaultAsync(x =>
+                        x.Id == dto.SectorId.Value);
+
+                if (sector == null)
+                {
+                    return BadRequest(new
+                    {
+                        mensagem = "Sector não encontrado."
+                    });
+                }
+
+                if (dto.SeccaoId.HasValue &&
+                    sector.SeccaoId != dto.SeccaoId.Value)
+                {
+                    return BadRequest(new
+                    {
+                        mensagem =
+                            "O sector selecionado não pertence à secção indicada."
+                    });
+                }
+            }
+
+            // --------------------------------------------------------
             // VALIDAR UNIDADE
             // --------------------------------------------------------
             if (dto.UnidadeOperacionalId.HasValue)
             {
-                var unidadeExiste = await _context.UnidadesOperacionais
-                    .AnyAsync(x =>
+                var unidade = await _context.UnidadesOperacionais
+                    .FirstOrDefaultAsync(x =>
                         x.Id == dto.UnidadeOperacionalId.Value);
 
-                if (!unidadeExiste)
+                if (unidade == null)
                 {
                     return BadRequest(new
                     {
                         mensagem = "Unidade operacional não encontrada."
+                    });
+                }
+
+                if (!unidade.Ativo)
+                {
+                    return BadRequest(new
+                    {
+                        mensagem =
+                            "A unidade operacional selecionada está inativa."
+                    });
+                }
+
+                if (dto.SeccaoId.HasValue &&
+                    unidade.SeccaoId != dto.SeccaoId.Value)
+                {
+                    return BadRequest(new
+                    {
+                        mensagem =
+                            "A unidade operacional não pertence à secção indicada."
                     });
                 }
             }
@@ -888,6 +1308,14 @@ namespace supai_mp.Controllers
                     });
                 }
 
+                if (!equipa.Ativo)
+                {
+                    return BadRequest(new
+                    {
+                        mensagem = "A equipa selecionada está inativa."
+                    });
+                }
+
                 if (dto.UnidadeOperacionalId.HasValue &&
                     equipa.UnidadeOperacionalId !=
                     dto.UnidadeOperacionalId.Value)
@@ -896,6 +1324,55 @@ namespace supai_mp.Controllers
                     {
                         mensagem =
                             "A equipa não pertence à unidade operacional indicada."
+                    });
+                }
+
+                if (dto.SectorId.HasValue &&
+                    equipa.SectorId !=
+                    dto.SectorId.Value)
+                {
+                    return BadRequest(new
+                    {
+                        mensagem =
+                            "A equipa não pertence ao sector indicado."
+                    });
+                }
+            }
+
+            // --------------------------------------------------------
+            // VALIDAR POSTO
+            // --------------------------------------------------------
+            var erroPosto = await ValidarPostoAsync(
+                dto.PostoId,
+                dto.SeccaoId,
+                dto.UnidadeOperacionalId);
+
+            if (erroPosto != null)
+            {
+                return BadRequest(new
+                {
+                    mensagem = erroPosto
+                });
+            }
+
+            // --------------------------------------------------------
+            // POSTO × SECTOR
+            // --------------------------------------------------------
+            if (dto.PostoId.HasValue &&
+                dto.SectorId.HasValue)
+            {
+                var posto = await _context.Postos
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(x =>
+                        x.Id == dto.PostoId.Value);
+
+                if (posto != null &&
+                    posto.SectorId != dto.SectorId.Value)
+                {
+                    return BadRequest(new
+                    {
+                        mensagem =
+                            "O posto selecionado não pertence ao sector indicado."
                     });
                 }
             }
@@ -933,43 +1410,57 @@ namespace supai_mp.Controllers
             // ENCERRAR LOTAÇÃO ANTERIOR
             // --------------------------------------------------------
             lotacaoAtual.Ativo = false;
-            lotacaoAtual.DataFim = dataTransferencia;
+
+            lotacaoAtual.DataFim =
+                dataTransferencia;
 
             // --------------------------------------------------------
             // CRIAR NOVA LOTAÇÃO
             // --------------------------------------------------------
             var novaLotacao = new LotacaoFuncionario
             {
-                FuncionarioId = funcionarioId,
+                FuncionarioId =
+                    funcionarioId,
 
-                SeccaoId = dto.SeccaoId,
+                SeccaoId =
+                    dto.SeccaoId,
 
-                SectorId = dto.SectorId,
+                SectorId =
+                    dto.SectorId,
 
                 UnidadeOperacionalId =
                     dto.UnidadeOperacionalId,
 
-                EquipaId = dto.EquipaId,
+                EquipaId =
+                    dto.EquipaId,
 
-                PostoId = dto.PostoId,
+                PostoId =
+                    dto.PostoId,
 
                 FuncaoOperacionalId =
                     dto.FuncaoOperacionalId,
 
-                TipoTurnoId = dto.TipoTurnoId,
+                TipoTurnoId =
+                    dto.TipoTurnoId,
 
-                DataInicio = dataTransferencia,
+                DataInicio =
+                    dataTransferencia,
 
-                DataFim = null,
+                DataFim =
+                    null,
 
-                Ativo = true,
+                Ativo =
+                    true,
 
-                Motivo = dto.Motivo,
+                Motivo =
+                    dto.Motivo,
 
-                Observacao = dto.Observacao
+                Observacao =
+                    dto.Observacao
             };
 
-            _context.LotacoesFuncionarios.Add(novaLotacao);
+            _context.LotacoesFuncionarios
+                .Add(novaLotacao);
 
             await _context.SaveChangesAsync();
 
@@ -986,7 +1477,8 @@ namespace supai_mp.Controllers
                 .Include(x => x.Posto)
                 .Include(x => x.FuncaoOperacional)
                 .Include(x => x.TipoTurno)
-                .FirstAsync(x => x.Id == novaLotacao.Id);
+                .FirstAsync(x =>
+                    x.Id == novaLotacao.Id);
 
             return Ok(ParaDto(resultado));
         }
@@ -999,7 +1491,8 @@ namespace supai_mp.Controllers
         public async Task<IActionResult> Encerrar(int id)
         {
             var lotacao = await _context.LotacoesFuncionarios
-                .FirstOrDefaultAsync(x => x.Id == id);
+                .FirstOrDefaultAsync(x =>
+                    x.Id == id);
 
             if (lotacao == null)
             {
@@ -1013,20 +1506,28 @@ namespace supai_mp.Controllers
             {
                 return BadRequest(new
                 {
-                    mensagem = "Esta lotação já está encerrada."
+                    mensagem =
+                        "Esta lotação já está encerrada."
                 });
             }
 
             lotacao.Ativo = false;
-            lotacao.DataFim = DateTime.Now;
+
+            lotacao.DataFim =
+                DateTime.Now;
 
             await _context.SaveChangesAsync();
 
             return Ok(new
             {
-                mensagem = "Lotação encerrada com sucesso.",
-                id = lotacao.Id,
-                dataFim = lotacao.DataFim
+                mensagem =
+                    "Lotação encerrada com sucesso.",
+
+                id =
+                    lotacao.Id,
+
+                dataFim =
+                    lotacao.DataFim
             });
         }
 
@@ -1035,29 +1536,33 @@ namespace supai_mp.Controllers
         // ============================================================
         [HttpPatch("funcionario/{funcionarioId:int}/retirar")]
         [Authorize(Roles = "Administrador")]
-        public async Task<IActionResult> Retirar(int funcionarioId)
+        public async Task<IActionResult>
+            Retirar(int funcionarioId)
         {
             // --------------------------------------------------------
             // VERIFICAR FUNCIONÁRIO
             // --------------------------------------------------------
             var funcionarioExiste = await _context.Funcionarios
-                .AnyAsync(x => x.Id == funcionarioId);
+                .AnyAsync(x =>
+                    x.Id == funcionarioId);
 
             if (!funcionarioExiste)
             {
                 return NotFound(new
                 {
-                    mensagem = "Funcionário não encontrado."
+                    mensagem =
+                        "Funcionário não encontrado."
                 });
             }
 
             // --------------------------------------------------------
-            // LOCALIZAR LOTAÇÃO ATIVA
+            // LOCALIZAR LOTAÇÃO ACTIVA
             // --------------------------------------------------------
-            var lotacaoAtual = await _context.LotacoesFuncionarios
-                .FirstOrDefaultAsync(x =>
-                    x.FuncionarioId == funcionarioId &&
-                    x.Ativo);
+            var lotacaoAtual =
+                await _context.LotacoesFuncionarios
+                    .FirstOrDefaultAsync(x =>
+                        x.FuncionarioId == funcionarioId &&
+                        x.Ativo);
 
             if (lotacaoAtual == null)
             {
@@ -1072,7 +1577,9 @@ namespace supai_mp.Controllers
             // ENCERRAR LOTAÇÃO
             // --------------------------------------------------------
             lotacaoAtual.Ativo = false;
-            lotacaoAtual.DataFim = DateTime.Now;
+
+            lotacaoAtual.DataFim =
+                DateTime.Now;
 
             await _context.SaveChangesAsync();
 
@@ -1081,11 +1588,14 @@ namespace supai_mp.Controllers
                 mensagem =
                     "Funcionário retirado da equipa com sucesso.",
 
-                funcionarioId = funcionarioId,
+                funcionarioId =
+                    funcionarioId,
 
-                lotacaoId = lotacaoAtual.Id,
+                lotacaoId =
+                    lotacaoAtual.Id,
 
-                dataFim = lotacaoAtual.DataFim
+                dataFim =
+                    lotacaoAtual.DataFim
             });
         }
 
@@ -1094,20 +1604,26 @@ namespace supai_mp.Controllers
         // ============================================================
         [HttpDelete("{id:int}")]
         [Authorize(Roles = "Administrador")]
-        public async Task<IActionResult> Eliminar(int id)
+        public async Task<IActionResult>
+            Eliminar(int id)
         {
-            var lotacao = await _context.LotacoesFuncionarios
-                .FirstOrDefaultAsync(x => x.Id == id);
+            var lotacao =
+                await _context.LotacoesFuncionarios
+                    .FirstOrDefaultAsync(x =>
+                        x.Id == id);
 
             if (lotacao == null)
             {
                 return NotFound(new
                 {
-                    mensagem = "Lotação não encontrada."
+                    mensagem =
+                        "Lotação não encontrada."
                 });
             }
 
-            // Não apagar histórico de lotações encerradas.
+            // --------------------------------------------------------
+            // NÃO APAGAR HISTÓRICO
+            // --------------------------------------------------------
             if (!lotacao.Ativo)
             {
                 return BadRequest(new
@@ -1118,13 +1634,15 @@ namespace supai_mp.Controllers
                 });
             }
 
-            _context.LotacoesFuncionarios.Remove(lotacao);
+            _context.LotacoesFuncionarios
+                .Remove(lotacao);
 
             await _context.SaveChangesAsync();
 
             return Ok(new
             {
-                mensagem = "Lotação eliminada com sucesso."
+                mensagem =
+                    "Lotação eliminada com sucesso."
             });
         }
     }
