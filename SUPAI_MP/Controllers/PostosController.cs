@@ -13,6 +13,19 @@ namespace supai_mp.Controllers
     {
         private readonly ApplicationDbContext _context;
 
+        // ============================================================
+        // CONSTANTES
+        // ============================================================
+
+        // Protecção de Objectos
+        private const int SECCAO_PROTECCAO_OBJECTOS = 7;
+
+        // Tipos de Unidade Operacional
+        // 1 = Companhia
+        // 2 = Pelotão
+        private const int TIPO_COMPANHIA = 1;
+        private const int TIPO_PELOTAO = 2;
+
         public PostosController(ApplicationDbContext context)
         {
             _context = context;
@@ -25,65 +38,82 @@ namespace supai_mp.Controllers
         public class PostoListaDto
         {
             public int Id { get; set; }
+
             public string Codigo { get; set; } = string.Empty;
+
             public string Nome { get; set; } = string.Empty;
+
             public string? Localizacao { get; set; }
 
             public int SeccaoId { get; set; }
+
             public string? Seccao { get; set; }
 
             public int? SectorId { get; set; }
+
             public string? Sector { get; set; }
 
             public int? UnidadeOperacionalId { get; set; }
+
             public string? UnidadeOperacional { get; set; }
 
             public string? Descricao { get; set; }
+
             public bool Ativo { get; set; }
+
             public DateTime DataCadastro { get; set; }
         }
 
         public class PostoDetalheDto
         {
             public int Id { get; set; }
+
             public string Codigo { get; set; } = string.Empty;
+
             public string Nome { get; set; } = string.Empty;
+
             public string? Localizacao { get; set; }
 
             public int SeccaoId { get; set; }
+
             public string? Seccao { get; set; }
 
             public int? SectorId { get; set; }
+
             public string? Sector { get; set; }
 
             public int? UnidadeOperacionalId { get; set; }
+
             public string? UnidadeOperacional { get; set; }
 
             public string? Descricao { get; set; }
+
             public bool Ativo { get; set; }
+
             public DateTime DataCadastro { get; set; }
 
             public List<PostoLotacaoDto> Lotacoes { get; set; }
                 = new List<PostoLotacaoDto>();
         }
 
-        // IMPORTANTE:
-        // O nome foi alterado de LotacaoDto para PostoLotacaoDto
-        // para evitar conflito com outro DTO existente no projecto.
         public class PostoLotacaoDto
         {
             public int Id { get; set; }
 
             public int FuncionarioId { get; set; }
+
             public string? Funcionario { get; set; }
 
             public int FuncaoOperacionalId { get; set; }
+
             public string? FuncaoOperacional { get; set; }
 
             public int? TipoTurnoId { get; set; }
+
             public string? TipoTurno { get; set; }
 
             public DateTime DataInicio { get; set; }
+
             public DateTime? DataFim { get; set; }
 
             public bool Ativo { get; set; }
@@ -101,27 +131,37 @@ namespace supai_mp.Controllers
                 .Select(p => new PostoListaDto
                 {
                     Id = p.Id,
+
                     Codigo = p.Codigo,
+
                     Nome = p.Nome,
+
                     Localizacao = p.Localizacao,
 
                     SeccaoId = p.SeccaoId,
+
                     Seccao = p.Seccao != null
                         ? p.Seccao.Nome
                         : null,
 
                     SectorId = p.SectorId,
+
                     Sector = p.Sector != null
                         ? p.Sector.Nome
                         : null,
 
-                    UnidadeOperacionalId = p.UnidadeOperacionalId,
-                    UnidadeOperacional = p.UnidadeOperacional != null
-                        ? p.UnidadeOperacional.Nome
-                        : null,
+                    UnidadeOperacionalId =
+                        p.UnidadeOperacionalId,
+
+                    UnidadeOperacional =
+                        p.UnidadeOperacional != null
+                            ? p.UnidadeOperacional.Nome
+                            : null,
 
                     Descricao = p.Descricao,
+
                     Ativo = p.Ativo,
+
                     DataCadastro = p.DataCadastro
                 })
                 .OrderBy(p => p.Seccao)
@@ -136,7 +176,8 @@ namespace supai_mp.Controllers
         // ============================================================
 
         [HttpGet("{id:int}")]
-        public async Task<ActionResult<PostoDetalheDto>> GetPosto(int id)
+        public async Task<ActionResult<PostoDetalheDto>> GetPosto(
+            int id)
         {
             var posto = await _context.Postos
                 .AsNoTracking()
@@ -144,27 +185,37 @@ namespace supai_mp.Controllers
                 .Select(p => new PostoDetalheDto
                 {
                     Id = p.Id,
+
                     Codigo = p.Codigo,
+
                     Nome = p.Nome,
+
                     Localizacao = p.Localizacao,
 
                     SeccaoId = p.SeccaoId,
+
                     Seccao = p.Seccao != null
                         ? p.Seccao.Nome
                         : null,
 
                     SectorId = p.SectorId,
+
                     Sector = p.Sector != null
                         ? p.Sector.Nome
                         : null,
 
-                    UnidadeOperacionalId = p.UnidadeOperacionalId,
-                    UnidadeOperacional = p.UnidadeOperacional != null
-                        ? p.UnidadeOperacional.Nome
-                        : null,
+                    UnidadeOperacionalId =
+                        p.UnidadeOperacionalId,
+
+                    UnidadeOperacional =
+                        p.UnidadeOperacional != null
+                            ? p.UnidadeOperacional.Nome
+                            : null,
 
                     Descricao = p.Descricao,
+
                     Ativo = p.Ativo,
+
                     DataCadastro = p.DataCadastro,
 
                     Lotacoes = p.Lotacoes
@@ -172,27 +223,38 @@ namespace supai_mp.Controllers
                         {
                             Id = l.Id,
 
-                            FuncionarioId = l.FuncionarioId,
+                            FuncionarioId =
+                                l.FuncionarioId,
 
-                            Funcionario = l.Funcionario != null
-                                ? l.Funcionario.NomeCompleto
-                                : null,
+                            Funcionario =
+                                l.Funcionario != null
+                                    ? l.Funcionario.NomeCompleto
+                                    : null,
 
-                            FuncaoOperacionalId = l.FuncaoOperacionalId,
+                            FuncaoOperacionalId =
+                                l.FuncaoOperacionalId,
 
-                            FuncaoOperacional = l.FuncaoOperacional != null
-                                ? l.FuncaoOperacional.Nome
-                                : null,
+                            FuncaoOperacional =
+                                l.FuncaoOperacional != null
+                                    ? l.FuncaoOperacional.Nome
+                                    : null,
 
-                            TipoTurnoId = l.TipoTurnoId,
+                            TipoTurnoId =
+                                l.TipoTurnoId,
 
-                            TipoTurno = l.TipoTurno != null
-                                ? l.TipoTurno.Nome
-                                : null,
+                            TipoTurno =
+                                l.TipoTurno != null
+                                    ? l.TipoTurno.Nome
+                                    : null,
 
-                            DataInicio = l.DataInicio,
-                            DataFim = l.DataFim,
-                            Ativo = l.Ativo
+                            DataInicio =
+                                l.DataInicio,
+
+                            DataFim =
+                                l.DataFim,
+
+                            Ativo =
+                                l.Ativo
                         })
                         .ToList()
                 })
@@ -214,8 +276,8 @@ namespace supai_mp.Controllers
         // ============================================================
 
         [HttpGet("seccao/{seccaoId:int}")]
-        public async Task<ActionResult<IEnumerable<PostoListaDto>>> GetPorSeccao(
-            int seccaoId)
+        public async Task<ActionResult<IEnumerable<PostoListaDto>>>
+            GetPorSeccao(int seccaoId)
         {
             var existe = await _context.Seccoes
                 .AnyAsync(s => s.Id == seccaoId);
@@ -234,27 +296,37 @@ namespace supai_mp.Controllers
                 .Select(p => new PostoListaDto
                 {
                     Id = p.Id,
+
                     Codigo = p.Codigo,
+
                     Nome = p.Nome,
+
                     Localizacao = p.Localizacao,
 
                     SeccaoId = p.SeccaoId,
+
                     Seccao = p.Seccao != null
                         ? p.Seccao.Nome
                         : null,
 
                     SectorId = p.SectorId,
+
                     Sector = p.Sector != null
                         ? p.Sector.Nome
                         : null,
 
-                    UnidadeOperacionalId = p.UnidadeOperacionalId,
-                    UnidadeOperacional = p.UnidadeOperacional != null
-                        ? p.UnidadeOperacional.Nome
-                        : null,
+                    UnidadeOperacionalId =
+                        p.UnidadeOperacionalId,
+
+                    UnidadeOperacional =
+                        p.UnidadeOperacional != null
+                            ? p.UnidadeOperacional.Nome
+                            : null,
 
                     Descricao = p.Descricao,
+
                     Ativo = p.Ativo,
+
                     DataCadastro = p.DataCadastro
                 })
                 .OrderBy(p => p.Nome)
@@ -268,12 +340,13 @@ namespace supai_mp.Controllers
         // ============================================================
 
         [HttpGet("sector/{sectorId:int}")]
-        public async Task<ActionResult<IEnumerable<PostoListaDto>>> GetPorSector(
-            int sectorId)
+        public async Task<ActionResult<IEnumerable<PostoListaDto>>>
+            GetPorSector(int sectorId)
         {
             var sector = await _context.Sectores
                 .AsNoTracking()
-                .FirstOrDefaultAsync(s => s.Id == sectorId);
+                .FirstOrDefaultAsync(
+                    s => s.Id == sectorId);
 
             if (sector == null)
             {
@@ -289,27 +362,37 @@ namespace supai_mp.Controllers
                 .Select(p => new PostoListaDto
                 {
                     Id = p.Id,
+
                     Codigo = p.Codigo,
+
                     Nome = p.Nome,
+
                     Localizacao = p.Localizacao,
 
                     SeccaoId = p.SeccaoId,
+
                     Seccao = p.Seccao != null
                         ? p.Seccao.Nome
                         : null,
 
                     SectorId = p.SectorId,
+
                     Sector = p.Sector != null
                         ? p.Sector.Nome
                         : null,
 
-                    UnidadeOperacionalId = p.UnidadeOperacionalId,
-                    UnidadeOperacional = p.UnidadeOperacional != null
-                        ? p.UnidadeOperacional.Nome
-                        : null,
+                    UnidadeOperacionalId =
+                        p.UnidadeOperacionalId,
+
+                    UnidadeOperacional =
+                        p.UnidadeOperacional != null
+                            ? p.UnidadeOperacional.Nome
+                            : null,
 
                     Descricao = p.Descricao,
+
                     Ativo = p.Ativo,
+
                     DataCadastro = p.DataCadastro
                 })
                 .OrderBy(p => p.Nome)
@@ -323,48 +406,61 @@ namespace supai_mp.Controllers
         // ============================================================
 
         [HttpGet("unidade/{unidadeOperacionalId:int}")]
-        public async Task<ActionResult<IEnumerable<PostoListaDto>>> GetPorUnidade(
-            int unidadeOperacionalId)
+        public async Task<ActionResult<IEnumerable<PostoListaDto>>>
+            GetPorUnidade(int unidadeOperacionalId)
         {
             var existe = await _context.UnidadesOperacionais
-                .AnyAsync(u => u.Id == unidadeOperacionalId);
+                .AnyAsync(
+                    u => u.Id == unidadeOperacionalId);
 
             if (!existe)
             {
                 return NotFound(new
                 {
-                    mensagem = "Unidade operacional não encontrada."
+                    mensagem =
+                        "Unidade operacional não encontrada."
                 });
             }
 
             var postos = await _context.Postos
                 .AsNoTracking()
                 .Where(p =>
-                    p.UnidadeOperacionalId == unidadeOperacionalId)
+                    p.UnidadeOperacionalId ==
+                    unidadeOperacionalId)
                 .Select(p => new PostoListaDto
                 {
                     Id = p.Id,
+
                     Codigo = p.Codigo,
+
                     Nome = p.Nome,
+
                     Localizacao = p.Localizacao,
 
                     SeccaoId = p.SeccaoId,
+
                     Seccao = p.Seccao != null
                         ? p.Seccao.Nome
                         : null,
 
                     SectorId = p.SectorId,
+
                     Sector = p.Sector != null
                         ? p.Sector.Nome
                         : null,
 
-                    UnidadeOperacionalId = p.UnidadeOperacionalId,
-                    UnidadeOperacional = p.UnidadeOperacional != null
-                        ? p.UnidadeOperacional.Nome
-                        : null,
+                    UnidadeOperacionalId =
+                        p.UnidadeOperacionalId,
+
+                    UnidadeOperacional =
+                        p.UnidadeOperacional != null
+                            ? p.UnidadeOperacional.Nome
+                            : null,
 
                     Descricao = p.Descricao,
+
                     Ativo = p.Ativo,
+
                     DataCadastro = p.DataCadastro
                 })
                 .OrderBy(p => p.Nome)
@@ -379,14 +475,15 @@ namespace supai_mp.Controllers
 
         [HttpPost]
         [Authorize(Roles = "Administrador")]
-        public async Task<ActionResult<PostoListaDto>> CriarPosto(
-            [FromBody] Posto dados)
+        public async Task<ActionResult<PostoListaDto>>
+            CriarPosto([FromBody] Posto dados)
         {
             if (dados == null)
             {
                 return BadRequest(new
                 {
-                    mensagem = "Os dados do posto são obrigatórios."
+                    mensagem =
+                        "Os dados do posto são obrigatórios."
                 });
             }
 
@@ -394,7 +491,8 @@ namespace supai_mp.Controllers
             {
                 return BadRequest(new
                 {
-                    mensagem = "O código do posto é obrigatório."
+                    mensagem =
+                        "O código do posto é obrigatório."
                 });
             }
 
@@ -402,32 +500,44 @@ namespace supai_mp.Controllers
             {
                 return BadRequest(new
                 {
-                    mensagem = "O nome do posto é obrigatório."
+                    mensagem =
+                        "O nome do posto é obrigatório."
                 });
             }
 
+            // ========================================================
+            // VALIDAR SECÇÃO
+            // ========================================================
+
             var seccao = await _context.Seccoes
-                .FirstOrDefaultAsync(s => s.Id == dados.SeccaoId);
+                .FirstOrDefaultAsync(
+                    s => s.Id == dados.SeccaoId);
 
             if (seccao == null)
             {
                 return BadRequest(new
                 {
-                    mensagem = "A secção indicada não existe."
+                    mensagem =
+                        "A secção indicada não existe."
                 });
             }
+
+            // ========================================================
+            // VALIDAR SECTOR
+            // ========================================================
 
             if (dados.SectorId.HasValue)
             {
                 var sector = await _context.Sectores
-                    .FirstOrDefaultAsync(s =>
-                        s.Id == dados.SectorId.Value);
+                    .FirstOrDefaultAsync(
+                        s => s.Id == dados.SectorId.Value);
 
                 if (sector == null)
                 {
                     return BadRequest(new
                     {
-                        mensagem = "O sector indicado não existe."
+                        mensagem =
+                            "O sector indicado não existe."
                     });
                 }
 
@@ -441,36 +551,33 @@ namespace supai_mp.Controllers
                 }
             }
 
-            if (dados.UnidadeOperacionalId.HasValue)
+            // ========================================================
+            // VALIDAR UNIDADE OPERACIONAL
+            // ========================================================
+
+            var unidadeValidacao =
+                await ValidarUnidadeOperacionalPosto(
+                    dados.SeccaoId,
+                    dados.UnidadeOperacionalId);
+
+            if (unidadeValidacao != null)
             {
-                var unidade = await _context.UnidadesOperacionais
-                    .FirstOrDefaultAsync(u =>
-                        u.Id == dados.UnidadeOperacionalId.Value);
-
-                if (unidade == null)
+                return BadRequest(new
                 {
-                    return BadRequest(new
-                    {
-                        mensagem =
-                            "A unidade operacional indicada não existe."
-                    });
-                }
-
-                if (unidade.SeccaoId != dados.SeccaoId)
-                {
-                    return BadRequest(new
-                    {
-                        mensagem =
-                            "A unidade operacional deve pertencer à mesma secção do posto."
-                    });
-                }
+                    mensagem = unidadeValidacao
+                });
             }
+
+            // ========================================================
+            // CÓDIGO DUPLICADO
+            // ========================================================
 
             var codigo = dados.Codigo.Trim();
 
             var codigoExiste = await _context.Postos
                 .AnyAsync(p =>
-                    p.Codigo.ToLower() == codigo.ToLower());
+                    p.Codigo.ToLower() ==
+                    codigo.ToLower());
 
             if (codigoExiste)
             {
@@ -481,12 +588,17 @@ namespace supai_mp.Controllers
                 });
             }
 
+            // ========================================================
+            // NOME DUPLICADO
+            // ========================================================
+
             var nome = dados.Nome.Trim();
 
             var nomeExiste = await _context.Postos
                 .AnyAsync(p =>
                     p.SeccaoId == dados.SeccaoId &&
-                    p.Nome.ToLower() == nome.ToLower());
+                    p.Nome.ToLower() ==
+                    nome.ToLower());
 
             if (nomeExiste)
             {
@@ -497,16 +609,33 @@ namespace supai_mp.Controllers
                 });
             }
 
+            // ========================================================
+            // CRIAR POSTO
+            // ========================================================
+
             var novoPosto = new Posto
             {
                 Codigo = codigo,
+
                 Nome = nome,
-                Localizacao = dados.Localizacao?.Trim(),
-                Descricao = dados.Descricao?.Trim(),
-                SeccaoId = dados.SeccaoId,
-                SectorId = dados.SectorId,
-                UnidadeOperacionalId = dados.UnidadeOperacionalId,
+
+                Localizacao =
+                    dados.Localizacao?.Trim(),
+
+                Descricao =
+                    dados.Descricao?.Trim(),
+
+                SeccaoId =
+                    dados.SeccaoId,
+
+                SectorId =
+                    dados.SectorId,
+
+                UnidadeOperacionalId =
+                    dados.UnidadeOperacionalId,
+
                 Ativo = true,
+
                 DataCadastro = DateTime.Now
             };
 
@@ -514,36 +643,60 @@ namespace supai_mp.Controllers
 
             await _context.SaveChangesAsync();
 
-            var resultado = await _context.Postos
-                .AsNoTracking()
-                .Where(p => p.Id == novoPosto.Id)
-                .Select(p => new PostoListaDto
-                {
-                    Id = p.Id,
-                    Codigo = p.Codigo,
-                    Nome = p.Nome,
-                    Localizacao = p.Localizacao,
+            // ========================================================
+            // RESULTADO
+            // ========================================================
 
-                    SeccaoId = p.SeccaoId,
-                    Seccao = p.Seccao != null
-                        ? p.Seccao.Nome
-                        : null,
+            var resultado =
+                await _context.Postos
+                    .AsNoTracking()
+                    .Where(p =>
+                        p.Id == novoPosto.Id)
+                    .Select(p => new PostoListaDto
+                    {
+                        Id = p.Id,
 
-                    SectorId = p.SectorId,
-                    Sector = p.Sector != null
-                        ? p.Sector.Nome
-                        : null,
+                        Codigo = p.Codigo,
 
-                    UnidadeOperacionalId = p.UnidadeOperacionalId,
-                    UnidadeOperacional = p.UnidadeOperacional != null
-                        ? p.UnidadeOperacional.Nome
-                        : null,
+                        Nome = p.Nome,
 
-                    Descricao = p.Descricao,
-                    Ativo = p.Ativo,
-                    DataCadastro = p.DataCadastro
-                })
-                .FirstAsync();
+                        Localizacao =
+                            p.Localizacao,
+
+                        SeccaoId =
+                            p.SeccaoId,
+
+                        Seccao =
+                            p.Seccao != null
+                                ? p.Seccao.Nome
+                                : null,
+
+                        SectorId =
+                            p.SectorId,
+
+                        Sector =
+                            p.Sector != null
+                                ? p.Sector.Nome
+                                : null,
+
+                        UnidadeOperacionalId =
+                            p.UnidadeOperacionalId,
+
+                        UnidadeOperacional =
+                            p.UnidadeOperacional != null
+                                ? p.UnidadeOperacional.Nome
+                                : null,
+
+                        Descricao =
+                            p.Descricao,
+
+                        Ativo =
+                            p.Ativo,
+
+                        DataCadastro =
+                            p.DataCadastro
+                    })
+                    .FirstAsync();
 
             return CreatedAtAction(
                 nameof(GetPosto),
@@ -565,26 +718,38 @@ namespace supai_mp.Controllers
             {
                 return BadRequest(new
                 {
-                    mensagem = "Os dados do posto são obrigatórios."
+                    mensagem =
+                        "Os dados do posto são obrigatórios."
                 });
             }
 
+            // ========================================================
+            // LOCALIZAR POSTO
+            // ========================================================
+
             var posto = await _context.Postos
-                .FirstOrDefaultAsync(p => p.Id == id);
+                .FirstOrDefaultAsync(
+                    p => p.Id == id);
 
             if (posto == null)
             {
                 return NotFound(new
                 {
-                    mensagem = "Posto não encontrado."
+                    mensagem =
+                        "Posto não encontrado."
                 });
             }
+
+            // ========================================================
+            // CAMPOS OBRIGATÓRIOS
+            // ========================================================
 
             if (string.IsNullOrWhiteSpace(dados.Codigo))
             {
                 return BadRequest(new
                 {
-                    mensagem = "O código do posto é obrigatório."
+                    mensagem =
+                        "O código do posto é obrigatório."
                 });
             }
 
@@ -592,36 +757,53 @@ namespace supai_mp.Controllers
             {
                 return BadRequest(new
                 {
-                    mensagem = "O nome do posto é obrigatório."
+                    mensagem =
+                        "O nome do posto é obrigatório."
                 });
             }
 
-            var seccaoExiste = await _context.Seccoes
-                .AnyAsync(s => s.Id == dados.SeccaoId);
+            // ========================================================
+            // VALIDAR SECÇÃO
+            // ========================================================
+
+            var seccaoExiste =
+                await _context.Seccoes
+                    .AnyAsync(
+                        s => s.Id == dados.SeccaoId);
 
             if (!seccaoExiste)
             {
                 return BadRequest(new
                 {
-                    mensagem = "A secção indicada não existe."
+                    mensagem =
+                        "A secção indicada não existe."
                 });
             }
 
+            // ========================================================
+            // VALIDAR SECTOR
+            // ========================================================
+
             if (dados.SectorId.HasValue)
             {
-                var sector = await _context.Sectores
-                    .FirstOrDefaultAsync(s =>
-                        s.Id == dados.SectorId.Value);
+                var sector =
+                    await _context.Sectores
+                        .FirstOrDefaultAsync(
+                            s =>
+                                s.Id ==
+                                dados.SectorId.Value);
 
                 if (sector == null)
                 {
                     return BadRequest(new
                     {
-                        mensagem = "O sector indicado não existe."
+                        mensagem =
+                            "O sector indicado não existe."
                     });
                 }
 
-                if (sector.SeccaoId != dados.SeccaoId)
+                if (sector.SeccaoId !=
+                    dados.SeccaoId)
                 {
                     return BadRequest(new
                     {
@@ -631,37 +813,36 @@ namespace supai_mp.Controllers
                 }
             }
 
-            if (dados.UnidadeOperacionalId.HasValue)
+            // ========================================================
+            // VALIDAR UNIDADE OPERACIONAL
+            // ========================================================
+
+            var unidadeValidacao =
+                await ValidarUnidadeOperacionalPosto(
+                    dados.SeccaoId,
+                    dados.UnidadeOperacionalId);
+
+            if (unidadeValidacao != null)
             {
-                var unidade = await _context.UnidadesOperacionais
-                    .FirstOrDefaultAsync(u =>
-                        u.Id == dados.UnidadeOperacionalId.Value);
-
-                if (unidade == null)
+                return BadRequest(new
                 {
-                    return BadRequest(new
-                    {
-                        mensagem =
-                            "A unidade operacional indicada não existe."
-                    });
-                }
-
-                if (unidade.SeccaoId != dados.SeccaoId)
-                {
-                    return BadRequest(new
-                    {
-                        mensagem =
-                            "A unidade operacional deve pertencer à mesma secção do posto."
-                    });
-                }
+                    mensagem = unidadeValidacao
+                });
             }
 
-            var codigo = dados.Codigo.Trim();
+            // ========================================================
+            // CÓDIGO DUPLICADO
+            // ========================================================
 
-            var codigoDuplicado = await _context.Postos
-                .AnyAsync(p =>
-                    p.Id != id &&
-                    p.Codigo.ToLower() == codigo.ToLower());
+            var codigo =
+                dados.Codigo.Trim();
+
+            var codigoDuplicado =
+                await _context.Postos
+                    .AnyAsync(p =>
+                        p.Id != id &&
+                        p.Codigo.ToLower() ==
+                        codigo.ToLower());
 
             if (codigoDuplicado)
             {
@@ -672,13 +853,21 @@ namespace supai_mp.Controllers
                 });
             }
 
-            var nome = dados.Nome.Trim();
+            // ========================================================
+            // NOME DUPLICADO
+            // ========================================================
 
-            var nomeDuplicado = await _context.Postos
-                .AnyAsync(p =>
-                    p.Id != id &&
-                    p.SeccaoId == dados.SeccaoId &&
-                    p.Nome.ToLower() == nome.ToLower());
+            var nome =
+                dados.Nome.Trim();
+
+            var nomeDuplicado =
+                await _context.Postos
+                    .AnyAsync(p =>
+                        p.Id != id &&
+                        p.SeccaoId ==
+                            dados.SeccaoId &&
+                        p.Nome.ToLower() ==
+                            nome.ToLower());
 
             if (nomeDuplicado)
             {
@@ -689,23 +878,49 @@ namespace supai_mp.Controllers
                 });
             }
 
-            posto.Codigo = codigo;
-            posto.Nome = nome;
-            posto.Localizacao = dados.Localizacao?.Trim();
-            posto.Descricao = dados.Descricao?.Trim();
-            posto.SeccaoId = dados.SeccaoId;
-            posto.SectorId = dados.SectorId;
-            posto.UnidadeOperacionalId = dados.UnidadeOperacionalId;
+            // ========================================================
+            // ACTUALIZAR
+            // ========================================================
+
+            posto.Codigo =
+                codigo;
+
+            posto.Nome =
+                nome;
+
+            posto.Localizacao =
+                dados.Localizacao?.Trim();
+
+            posto.Descricao =
+                dados.Descricao?.Trim();
+
+            posto.SeccaoId =
+                dados.SeccaoId;
+
+            posto.SectorId =
+                dados.SectorId;
+
+            posto.UnidadeOperacionalId =
+                dados.UnidadeOperacionalId;
 
             await _context.SaveChangesAsync();
 
             return Ok(new
             {
-                mensagem = "Posto actualizado com sucesso.",
-                id = posto.Id,
-                codigo = posto.Codigo,
-                nome = posto.Nome,
-                ativo = posto.Ativo
+                mensagem =
+                    "Posto actualizado com sucesso.",
+
+                id =
+                    posto.Id,
+
+                codigo =
+                    posto.Codigo,
+
+                nome =
+                    posto.Nome,
+
+                ativo =
+                    posto.Ativo
             });
         }
 
@@ -719,31 +934,92 @@ namespace supai_mp.Controllers
             int id,
             [FromBody] bool ativo)
         {
-            var posto = await _context.Postos
-                .FirstOrDefaultAsync(p => p.Id == id);
+            var posto =
+                await _context.Postos
+                    .FirstOrDefaultAsync(
+                        p => p.Id == id);
 
             if (posto == null)
             {
                 return NotFound(new
                 {
-                    mensagem = "Posto não encontrado."
+                    mensagem =
+                        "Posto não encontrado."
                 });
             }
 
-            posto.Ativo = ativo;
+            // ========================================================
+            // DESACTIVAÇÃO
+            // ========================================================
+
+            if (!ativo)
+            {
+                posto.Ativo = false;
+
+                await _context.SaveChangesAsync();
+
+                return Ok(new
+                {
+                    mensagem =
+                        "Posto desactivado com sucesso.",
+
+                    id =
+                        posto.Id,
+
+                    codigo =
+                        posto.Codigo,
+
+                    nome =
+                        posto.Nome,
+
+                    ativo =
+                        posto.Ativo
+                });
+            }
+
+            // ========================================================
+            // ACTIVAÇÃO
+            // ========================================================
+            //
+            // Antes de activar, confirmamos que a estrutura do posto
+            // continua válida.
+            // ========================================================
+
+            var unidadeValidacao =
+                await ValidarUnidadeOperacionalPosto(
+                    posto.SeccaoId,
+                    posto.UnidadeOperacionalId);
+
+            if (unidadeValidacao != null)
+            {
+                return BadRequest(new
+                {
+                    mensagem =
+                        "Não é possível activar o posto porque a sua estrutura operacional deixou de ser válida: "
+                        + unidadeValidacao
+                });
+            }
+
+            posto.Ativo = true;
 
             await _context.SaveChangesAsync();
 
             return Ok(new
             {
-                mensagem = ativo
-                    ? "Posto activado com sucesso."
-                    : "Posto desactivado com sucesso.",
+                mensagem =
+                    "Posto activado com sucesso.",
 
-                id = posto.Id,
-                codigo = posto.Codigo,
-                nome = posto.Nome,
-                ativo = posto.Ativo
+                id =
+                    posto.Id,
+
+                codigo =
+                    posto.Codigo,
+
+                nome =
+                    posto.Nome,
+
+                ativo =
+                    posto.Ativo
             });
         }
 
@@ -753,28 +1029,186 @@ namespace supai_mp.Controllers
 
         [HttpDelete("{id:int}")]
         [Authorize(Roles = "Administrador")]
-        public async Task<IActionResult> EliminarPosto(int id)
+        public async Task<IActionResult> EliminarPosto(
+            int id)
         {
-            var posto = await _context.Postos
-                .FirstOrDefaultAsync(p => p.Id == id);
+            var posto =
+                await _context.Postos
+                    .FirstOrDefaultAsync(
+                        p => p.Id == id);
 
             if (posto == null)
             {
                 return NotFound(new
                 {
-                    mensagem = "Posto não encontrado."
+                    mensagem =
+                        "Posto não encontrado."
                 });
             }
 
-            // Eliminação lógica
+            // ========================================================
+            // ELIMINAÇÃO LÓGICA
+            // ========================================================
+
             posto.Ativo = false;
 
             await _context.SaveChangesAsync();
 
             return Ok(new
             {
-                mensagem = "Posto desactivado com sucesso."
+                mensagem =
+                    "Posto desactivado com sucesso."
             });
+        }
+
+        // ============================================================
+        // VALIDAÇÃO DA UNIDADE OPERACIONAL DO POSTO
+        // ============================================================
+        //
+        // Esta validação é especialmente importante para a
+        // Protecção de Objectos.
+        //
+        // Estrutura obrigatória:
+        //
+        // Secção 7
+        //    ↓
+        // Companhia (Tipo 1)
+        //    ↓
+        // Pelotão (Tipo 2)
+        //    ↓
+        // Posto
+        //
+        // Para outras secções, mantemos a regra geral:
+        // a unidade deve existir e pertencer à mesma secção.
+        // ============================================================
+
+        private async Task<string?> ValidarUnidadeOperacionalPosto(
+            int seccaoId,
+            int? unidadeOperacionalId)
+        {
+            // --------------------------------------------------------
+            // Sem unidade operacional
+            // --------------------------------------------------------
+
+            if (!unidadeOperacionalId.HasValue)
+            {
+                return null;
+            }
+
+            // --------------------------------------------------------
+            // Procurar unidade
+            // --------------------------------------------------------
+
+            var unidade =
+                await _context.UnidadesOperacionais
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(
+                        u =>
+                            u.Id ==
+                            unidadeOperacionalId.Value);
+
+            if (unidade == null)
+            {
+                return
+                    "A unidade operacional indicada não existe.";
+            }
+
+            // --------------------------------------------------------
+            // Unidade activa
+            // --------------------------------------------------------
+
+            if (!unidade.Ativo)
+            {
+                return
+                    "A unidade operacional seleccionada está desactivada.";
+            }
+
+            // --------------------------------------------------------
+            // Mesma secção
+            // --------------------------------------------------------
+
+            if (unidade.SeccaoId != seccaoId)
+            {
+                return
+                    "A unidade operacional deve pertencer à mesma secção do posto.";
+            }
+
+            // ========================================================
+            // REGRA ESPECIAL:
+            // PROTECÇÃO DE OBJECTOS
+            // ========================================================
+
+            if (seccaoId ==
+                SECCAO_PROTECCAO_OBJECTOS)
+            {
+                // ----------------------------------------------------
+                // O posto da Protecção de Objectos deve estar
+                // obrigatoriamente dentro de um PELOTÃO.
+                // ----------------------------------------------------
+
+                if (unidade.Tipo != UnidadeOperacional.TipoUnidadeOperacional.Pelotao)
+                {
+                    return
+                        "Na Protecção de Objectos, um posto deve pertencer obrigatoriamente a um pelotão.";
+                }
+
+                // ----------------------------------------------------
+                // O pelotão deve ter uma Companhia como pai.
+                // ----------------------------------------------------
+
+                if (!unidade.UnidadePaiId.HasValue)
+                {
+                    return
+                        "O pelotão seleccionado não possui uma companhia associada.";
+                }
+
+                var companhia =
+                    await _context.UnidadesOperacionais
+                        .AsNoTracking()
+                        .FirstOrDefaultAsync(
+                            u =>
+                                u.Id ==
+                                unidade.UnidadePaiId.Value);
+
+                if (companhia == null)
+                {
+                    return
+                        "A companhia do pelotão seleccionado não existe.";
+                }
+
+                // ----------------------------------------------------
+                // A companhia deve estar activa.
+                // ----------------------------------------------------
+
+                if (!companhia.Ativo)
+                {
+                    return
+                        "A companhia do pelotão seleccionado está desactivada.";
+                }
+
+                // ----------------------------------------------------
+                // A companhia deve pertencer à mesma secção.
+                // ----------------------------------------------------
+
+                if (companhia.SeccaoId !=
+                    SECCAO_PROTECCAO_OBJECTOS)
+                {
+                    return
+                        "A companhia do pelotão não pertence à Protecção de Objectos.";
+                }
+
+                // ----------------------------------------------------
+                // O pai deve realmente ser uma Companhia.
+                // ----------------------------------------------------
+
+                if (companhia.Tipo != UnidadeOperacional.TipoUnidadeOperacional.Companhia)
+                {
+                    return
+                        "A unidade superior do pelotão seleccionado não é uma companhia válida.";
+                }
+            }
+
+            return null;
         }
     }
 }
