@@ -748,6 +748,127 @@ namespace supai_mp.Controllers
 
             return Ok(estado);
         }
+        // ============================================================
+        // GET — ESTADO DE TODOS OS POSTOS DA PROTECÇÃO DE OBJECTOS
+        // ============================================================
+        [HttpGet("postos/proteccao-objectos/efetivo")]
+        public async Task<ActionResult<IEnumerable<EstadoPostoRespostaDto>>>
+            GetEstadoTodosPostosProteccaoObjectos()
+        {
+            // --------------------------------------------------------
+            // LOCALIZAR TODOS OS POSTOS ACTIVOS DA PROTECÇÃO DE OBJECTOS
+            // --------------------------------------------------------
+            var postos = await _context.Postos
+                .AsNoTracking()
+                .Include(x => x.UnidadeOperacional)
+                .Where(x =>
+                    x.Ativo &&
+                    x.SeccaoId == SECCAO_PROTECCAO_OBJECTOS)
+                .OrderBy(x => x.Codigo)
+                .ThenBy(x => x.Nome)
+                .ToListAsync();
+
+            // --------------------------------------------------------
+            // NÚMERO DE FUNCIONÁRIOS ACTIVOS POR POSTO
+            // --------------------------------------------------------
+            var totaisPorPosto = await _context.LotacoesFuncionarios
+                .AsNoTracking()
+                .Where(x =>
+                    x.Ativo &&
+                    x.PostoId.HasValue &&
+                    x.SeccaoId == SECCAO_PROTECCAO_OBJECTOS)
+                .GroupBy(x => x.PostoId!.Value)
+                .Select(g => new
+                {
+                    PostoId = g.Key,
+                    Total = g.Count()
+                })
+                .ToDictionaryAsync(x => x.PostoId, x => x.Total);
+
+            // --------------------------------------------------------
+            // CONSTRUIR RESULTADO
+            // --------------------------------------------------------
+            var resultado = postos.Select(posto =>
+            {
+                var totalFuncionarios =
+                    totaisPorPosto.TryGetValue(
+                        posto.Id,
+                        out var total)
+                        ? total
+                        : 0;
+
+                var funcionariosEmFalta =
+                    Math.Max(
+                        0,
+                        MINIMO_FUNCIONARIOS_POSTO -
+                        totalFuncionarios);
+
+                var excedenteFuncionarios =
+                    Math.Max(
+                        0,
+                        totalFuncionarios -
+                        MINIMO_FUNCIONARIOS_POSTO);
+
+                string estado;
+
+                if (totalFuncionarios == 0)
+                {
+                    estado = "Sem efectivos";
+                }
+                else if (totalFuncionarios < MINIMO_FUNCIONARIOS_POSTO)
+                {
+                    estado = "Incompleto";
+                }
+                else if (totalFuncionarios == MINIMO_FUNCIONARIOS_POSTO)
+                {
+                    estado = "Completo";
+                }
+                else
+                {
+                    estado = "Acima do mínimo";
+                }
+
+                return new EstadoPostoRespostaDto
+                {
+                    PostoId = posto.Id,
+
+                    Posto = posto.Nome,
+
+                    Codigo = posto.Codigo,
+
+                    UnidadeOperacionalId =
+                        posto.UnidadeOperacionalId,
+
+                    UnidadeOperacional =
+                        posto.UnidadeOperacional?.Nome,
+
+                    MinimoFuncionarios =
+                        MINIMO_FUNCIONARIOS_POSTO,
+
+                    TotalFuncionarios =
+                        totalFuncionarios,
+
+                    FuncionariosEmFalta =
+                        funcionariosEmFalta,
+
+                    ExcedenteFuncionarios =
+                        excedenteFuncionarios,
+
+                    EfetivoCompleto =
+                        totalFuncionarios >=
+                        MINIMO_FUNCIONARIOS_POSTO,
+
+                    AcimaDoMinimo =
+                        totalFuncionarios >
+                        MINIMO_FUNCIONARIOS_POSTO,
+
+                    Estado =
+                        estado
+                };
+            }).ToList();
+
+            return Ok(resultado);
+        }
 
         // ============================================================
         // POST — CRIAR NOVA LOTAÇÃO

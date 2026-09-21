@@ -6,6 +6,7 @@ using supai_mp.Data;
 using supai_mp.Models;
 using supai_mp.Models.DTOs;
 using SUPAI_MP.Data.DTOs;
+using System.Linq.Expressions;
 using System.Security.Claims;
 
 namespace supai_mp.Controllers
@@ -21,24 +22,154 @@ namespace supai_mp.Controllers
             _context = context;
         }
 
-        // GET: api/Funcionarios       
+        // ============================================================
+        // ORDENAÇÃO HIERÁRQUICA GLOBAL
+        // ============================================================
+
+        /*
+         * ORDEM DAS CHEFIAS PRINCIPAIS:
+         *
+         * 1  - Comandante da SUPAI-MP
+         * 2  - Chefe de Operações
+         * 3  - Chefe de Doutrina e Ética Policial
+         * 4  - Chefe de PEAC
+         * 5  - Chefe de Segurança Pessoal
+         * 6  - Chefe de Protecção de Objectos
+         * 7  - Chefe de Logística e Finanças
+         * 8  - Chefe de Gestão de Pessoal e Formação
+         * 9  - Chefe da Secretaria
+         * 10 - Chefe de Informação Operativa
+         * 11 - Chefe de Informação Interna
+         *
+         * Todos os restantes funcionários recebem 9999
+         * e passam para a ordenação por categoria.
+         */
+
+        private static Expression<Func<Funcionario, int>>
+            OrdemChefiaExpression()
+        {
+            return f =>
+                f.Funcao == "ChefeDeCMD" ||
+                f.Funcao == "COMANDANTE DA SUPAI_MP"
+                    ? 1
+
+                : f.Funcao == "ChefeDeOP" ||
+                  f.Funcao == "CHEFE DE SEÇÃO DAS OPERAÇÕES"
+                    ? 2
+
+                : f.Funcao == "ChefeDeDEP" ||
+                  f.Funcao == "CHEFE DE SEÇÃO DE DOUTRINA E ÉTICA POLICIAL"
+                    ? 3
+
+                : f.Funcao == "ChefeDePEAC" ||
+                  f.Funcao == "CHEFE DE SEÇÃO DE PEAC"
+                    ? 4
+
+                : f.Funcao == "ChefeDeSP" ||
+                  f.Funcao == "CHEFE DE SEÇÃO DE SEGURANÇA PESSOAL"
+                    ? 5
+
+                : f.Funcao == "ChefeDePO" ||
+                  f.Funcao == "CHEFE DE SEÇÃO DE PROTECÇÃO DE OBJECTO"
+                    ? 6
+
+                : f.Funcao == "ChefeDeLogistica" ||
+                  f.Funcao == "CHEFE DE SEÇÃO DE LOGÍSTICA E FINANÇAS"
+                    ? 7
+
+                : f.Funcao == "ChefeDeGPF" ||
+                  f.Funcao == "CHEFE DE SEÇÃO DE GESTÃO DE PESSOAL E FORMAÇÃO"
+                    ? 8
+
+                : f.Funcao == "ChefeDeSECRE" ||
+                  f.Funcao == "CHEFE DE SEÇÃO DA SECRETARIA"
+                    ? 9
+
+                : f.Funcao == "ChefeDeIO" ||
+                  f.Funcao == "CHEFE DE SEÇÃO DE INFORMAÇÃO OPERATIVA"
+                    ? 10
+
+                : f.Funcao == "ChefeDeII" ||
+                  f.Funcao == "CHEFE DE SEÇÃO DE INFORMAÇÃO INTERNA"
+                    ? 11
+
+                : 9999;
+        }
+
+        /*
+         * ORDEM DAS CATEGORIAS:
+         *
+         * 1  - Inspector-Geral
+         * 2  - Comissário
+         * 3  - 1.º Adjunto Comissário
+         * 4  - Adjunto Comissário
+         * 5  - Superintendente Principal
+         * 6  - Superintendente
+         * 7  - Adjunto Superintendente
+         * 8  - Inspector Principal
+         * 9  - Inspector
+         * 10 - Subinspector
+         * 11 - Sargento Principal
+         * 12 - Sargento
+         * 13 - 1.º Cabo
+         * 14 - 2.º Cabo
+         * 15 - Guarda
+         */
+
+        private static Expression<Func<Funcionario, int>>
+            OrdemCategoriaExpression()
+        {
+            return f =>
+                f.Categoria == Categoria.IPG ? 1 :
+                f.Categoria == Categoria.COM ? 2 :
+                f.Categoria == Categoria.PAC ? 3 :
+                f.Categoria == Categoria.AJC ? 4 :
+                f.Categoria == Categoria.SPP ? 5 :
+                f.Categoria == Categoria.SUP ? 6 :
+                f.Categoria == Categoria.ASP ? 7 :
+                f.Categoria == Categoria.INP ? 8 :
+                f.Categoria == Categoria.INS ? 9 :
+                f.Categoria == Categoria.SUB ? 10 :
+                f.Categoria == Categoria.SAP ? 11 :
+                f.Categoria == Categoria.SAR ? 12 :
+                f.Categoria == Categoria.PC ? 13 :
+                f.Categoria == Categoria.SC ? 14 :
+                f.Categoria == Categoria.GUA ? 15 :
+                9999;
+        }
+
+        // ============================================================
+        // GET: api/Funcionarios
+        // ============================================================
+
         [Authorize(Roles = "Administrador")]
         [HttpGet]
         public async Task<IActionResult> GetFuncionarios()
         {
+            var ordemChefia = OrdemChefiaExpression();
+            var ordemCategoria = OrdemCategoriaExpression();
+
             var funcionarios = await _context.Funcionarios
-                .Where(f => f.Estado == EstadoFuncionario.ACTIVO)
+                .Where(f =>
+                    f.Estado == EstadoFuncionario.ACTIVO)
+
+                .OrderBy(ordemChefia)
+                .ThenBy(ordemCategoria)
+                .ThenBy(f => f.NomeCompleto)
+
                 .ToListAsync();
 
             return Ok(funcionarios);
         }
-       
-// GET: api/Funcionarios/meu-perfil
-[Authorize]
-[HttpGet("meu-perfil")]
-public async Task<IActionResult> MeuPerfil()
+
+        // ============================================================
+        // GET: api/Funcionarios/meu-perfil
+        // ============================================================
+
+        [Authorize]
+        [HttpGet("meu-perfil")]
+        public async Task<IActionResult> MeuPerfil()
         {
-            // Obter o ID do utilizador autenticado através do JWT
             var usuarioIdString =
                 User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
 
@@ -54,7 +185,6 @@ public async Task<IActionResult> MeuPerfil()
                     "Identificador do utilizador inválido.");
             }
 
-            // Procurar o utilizador e o funcionário associado
             var usuario = await _context.Usuarios
                 .Include(u => u.Funcionario)
                 .FirstOrDefaultAsync(u => u.Id == usuarioId);
@@ -65,31 +195,29 @@ public async Task<IActionResult> MeuPerfil()
                     "Utilizador não encontrado.");
             }
 
-            // Verificar se a conta está ativa
             if (!usuario.Ativo)
             {
                 return Unauthorized(
                     "Este utilizador está inativo.");
             }
 
-            // Verificar se existe funcionário associado
             if (usuario.Funcionario == null)
             {
                 return NotFound(
                     "Este utilizador não está associado a um funcionário.");
             }
 
-            // Retornar somente o funcionário associado
             return Ok(usuario.Funcionario);
         }
 
-
-
+        // ============================================================
         // PUT: api/Funcionarios/meu-perfil
+        // ============================================================
+
         [Authorize]
         [HttpPut("meu-perfil")]
         public async Task<IActionResult> AtualizarMeuPerfil(
-         AtualizarMeuPerfilDto dto)
+            AtualizarMeuPerfilDto dto)
         {
             var usuarioIdString =
                 User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
@@ -135,17 +263,26 @@ public async Task<IActionResult> MeuPerfil()
                 mensagem = "Perfil atualizado com sucesso."
             });
         }
+
+        // ============================================================
         // GET: api/Funcionarios/pesquisar?termo=Joao
+        // ============================================================
+
         [Authorize(Roles = "Administrador")]
         [HttpGet("pesquisar")]
-        public async Task<IActionResult> PesquisarFuncionarios(string termo)
+        public async Task<IActionResult> PesquisarFuncionarios(
+            string termo)
         {
             if (string.IsNullOrWhiteSpace(termo))
             {
-                return BadRequest("Digite um termo para pesquisar.");
+                return BadRequest(
+                    "Digite um termo para pesquisar.");
             }
 
             termo = termo.Trim();
+
+            var ordemChefia = OrdemChefiaExpression();
+            var ordemCategoria = OrdemCategoriaExpression();
 
             var funcionarios = await _context.Funcionarios
                 .Where(f =>
@@ -158,28 +295,30 @@ public async Task<IActionResult> MeuPerfil()
                         f.Contacto.Contains(termo) ||
                         f.LocalTrabalho.Contains(termo)
                     ))
+
+                .OrderBy(ordemChefia)
+                .ThenBy(ordemCategoria)
+                .ThenBy(f => f.NomeCompleto)
+
                 .ToListAsync();
 
             return Ok(funcionarios);
         }
-       
-[Authorize]
-[HttpPost("minha-fotografia")]
-public async Task<IActionResult> AtualizarMinhaFotografia(
-    IFormFile fotografia)
-        {
-            // ==========================================
-            // VALIDAR FOTOGRAFIA
-            // ==========================================
 
+        // ============================================================
+        // POST: api/Funcionarios/minha-fotografia
+        // ============================================================
+
+        [Authorize]
+        [HttpPost("minha-fotografia")]
+        public async Task<IActionResult> AtualizarMinhaFotografia(
+            IFormFile fotografia)
+        {
             if (fotografia == null || fotografia.Length == 0)
             {
-                return BadRequest("Selecione uma fotografia.");
+                return BadRequest(
+                    "Selecione uma fotografia.");
             }
-
-            // ==========================================
-            // OBTER UTILIZADOR AUTENTICADO
-            // ==========================================
 
             var usuarioIdString =
                 User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
@@ -194,17 +333,14 @@ public async Task<IActionResult> AtualizarMinhaFotografia(
                 return Unauthorized();
             }
 
-            // ==========================================
-            // BUSCAR UTILIZADOR E FUNCIONÁRIO
-            // ==========================================
-
             var usuario = await _context.Usuarios
                 .Include(u => u.Funcionario)
                 .FirstOrDefaultAsync(u => u.Id == usuarioId);
 
             if (usuario == null)
             {
-                return NotFound("Utilizador não encontrado.");
+                return NotFound(
+                    "Utilizador não encontrado.");
             }
 
             if (usuario.Funcionario == null)
@@ -213,16 +349,12 @@ public async Task<IActionResult> AtualizarMinhaFotografia(
                     "Este utilizador não está associado a um funcionário.");
             }
 
-            // ==========================================
-            // VALIDAR EXTENSÃO
-            // ==========================================
-
             var extensoesPermitidas = new[]
             {
-        ".jpg",
-        ".jpeg",
-        ".png"
-    };
+                ".jpg",
+                ".jpeg",
+                ".png"
+            };
 
             var extensao = Path
                 .GetExtension(fotografia.FileName)
@@ -234,27 +366,14 @@ public async Task<IActionResult> AtualizarMinhaFotografia(
                     "Formato inválido. Use JPG, JPEG ou PNG.");
             }
 
-            // ==========================================
-            // LIMITE DE 5 MB
-            // ==========================================
-
             if (fotografia.Length > 5 * 1024 * 1024)
             {
                 return BadRequest(
                     "A fotografia não pode ultrapassar 5 MB.");
             }
 
-            // ==========================================
-            // DEFINIR PASTA DAS FOTOGRAFIAS
-            // ==========================================
-
-            // No Railway:
-            // FOTOS_PATH será configurado para o Volume persistente.
-            //
-            // Localmente:
-            // Se a variável não existir, utiliza wwwroot/fotos.
-
-            var fotosPath = Environment.GetEnvironmentVariable("FOTOS_PATH");
+            var fotosPath =
+                Environment.GetEnvironmentVariable("FOTOS_PATH");
 
             if (string.IsNullOrWhiteSpace(fotosPath))
             {
@@ -264,35 +383,30 @@ public async Task<IActionResult> AtualizarMinhaFotografia(
                     "fotos");
             }
 
-            // Criar pasta caso não exista
             if (!Directory.Exists(fotosPath))
             {
                 Directory.CreateDirectory(fotosPath);
             }
 
-            // ==========================================
-            // ELIMINAR FOTOGRAFIA ANTIGA
-            // ==========================================
-
             if (!string.IsNullOrEmpty(
                 usuario.Funcionario.FotografiaUrl))
             {
-                var nomeFotoAntiga = Path.GetFileName(
-                    usuario.Funcionario.FotografiaUrl);
+                var nomeFotoAntiga =
+                    Path.GetFileName(
+                        usuario.Funcionario.FotografiaUrl);
 
-                var caminhoFotoAntiga = Path.Combine(
-                    fotosPath,
-                    nomeFotoAntiga);
+                var caminhoFotoAntiga =
+                    Path.Combine(
+                        fotosPath,
+                        nomeFotoAntiga);
 
-                if (System.IO.File.Exists(caminhoFotoAntiga))
+                if (System.IO.File.Exists(
+                    caminhoFotoAntiga))
                 {
-                    System.IO.File.Delete(caminhoFotoAntiga);
+                    System.IO.File.Delete(
+                        caminhoFotoAntiga);
                 }
             }
-
-            // ==========================================
-            // GERAR NOME ÚNICO
-            // ==========================================
 
             var nomeArquivo =
                 $"{Guid.NewGuid()}{extensao}";
@@ -302,10 +416,6 @@ public async Task<IActionResult> AtualizarMinhaFotografia(
                     fotosPath,
                     nomeArquivo);
 
-            // ==========================================
-            // GUARDAR FOTOGRAFIA
-            // ==========================================
-
             using (var stream = new FileStream(
                 caminhoArquivo,
                 FileMode.Create))
@@ -313,18 +423,10 @@ public async Task<IActionResult> AtualizarMinhaFotografia(
                 await fotografia.CopyToAsync(stream);
             }
 
-            // ==========================================
-            // ATUALIZAR BANCO DE DADOS
-            // ==========================================
-
             usuario.Funcionario.FotografiaUrl =
                 $"/fotos/{nomeArquivo}";
 
             await _context.SaveChangesAsync();
-
-            // ==========================================
-            // RESPOSTA
-            // ==========================================
 
             return Ok(new
             {
@@ -336,11 +438,14 @@ public async Task<IActionResult> AtualizarMinhaFotografia(
             });
         }
 
+        // ============================================================
+        // PUT: api/Funcionarios/alterar-senha
+        // ============================================================
 
         [Authorize]
         [HttpPut("alterar-senha")]
         public async Task<IActionResult> AlterarSenha(
-    AlterarSenhaDto dto)
+            AlterarSenhaDto dto)
         {
             var usuarioIdString =
                 User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
@@ -350,7 +455,9 @@ public async Task<IActionResult> AtualizarMinhaFotografia(
                 return Unauthorized();
             }
 
-            if (!int.TryParse(usuarioIdString, out int usuarioId))
+            if (!int.TryParse(
+                usuarioIdString,
+                out int usuarioId))
             {
                 return Unauthorized();
             }
@@ -360,12 +467,14 @@ public async Task<IActionResult> AtualizarMinhaFotografia(
 
             if (usuario == null)
             {
-                return NotFound("Utilizador não encontrado.");
+                return NotFound(
+                    "Utilizador não encontrado.");
             }
 
             if (!usuario.Ativo)
             {
-                return Unauthorized("Este utilizador está inativo.");
+                return Unauthorized(
+                    "Este utilizador está inativo.");
             }
 
             var senhaValida =
@@ -377,86 +486,122 @@ public async Task<IActionResult> AtualizarMinhaFotografia(
             {
                 return BadRequest(new
                 {
-                    mensagem = "A senha atual está incorreta."
+                    mensagem =
+                        "A senha atual está incorreta."
                 });
             }
 
             usuario.SenhaHash =
-                BCrypt.Net.BCrypt.HashPassword(dto.NovaSenha);
+                BCrypt.Net.BCrypt.HashPassword(
+                    dto.NovaSenha);
 
             await _context.SaveChangesAsync();
 
             return Ok(new
             {
-                mensagem = "Senha alterada com sucesso."
+                mensagem =
+                    "Senha alterada com sucesso."
             });
         }
+
+        // ============================================================
+        // GET: api/Funcionarios/pesquisa-avancada
+        // ============================================================
+
         [Authorize(Roles = "Administrador")]
         [HttpGet("pesquisa-avancada")]
         public async Task<IActionResult> PesquisaAvancada(
-        [FromQuery] FuncionarioPesquisaDto filtro)
+            [FromQuery] FuncionarioPesquisaDto filtro)
         {
-            var query = _context.Funcionarios.AsQueryable();
+            var query =
+                _context.Funcionarios.AsQueryable();
 
             if (!string.IsNullOrWhiteSpace(filtro.Nome))
             {
                 query = query.Where(f =>
-                    f.NomeCompleto.Contains(filtro.Nome));
+                    f.NomeCompleto.Contains(
+                        filtro.Nome));
             }
 
             if (!string.IsNullOrWhiteSpace(filtro.Nip))
             {
                 query = query.Where(f =>
-                    f.Nip.Contains(filtro.Nip));
+                    f.Nip.Contains(
+                        filtro.Nip));
             }
 
             if (!string.IsNullOrWhiteSpace(filtro.Bi))
             {
                 query = query.Where(f =>
-                    f.Bi.Contains(filtro.Bi));
+                    f.Bi.Contains(
+                        filtro.Bi));
             }
 
             if (!string.IsNullOrWhiteSpace(filtro.Nuit))
             {
                 query = query.Where(f =>
-                    f.Nuit.Contains(filtro.Nuit));
+                    f.Nuit.Contains(
+                        filtro.Nuit));
             }
 
             if (!string.IsNullOrWhiteSpace(filtro.Contacto))
             {
                 query = query.Where(f =>
-                    f.Contacto.Contains(filtro.Contacto));
+                    f.Contacto.Contains(
+                        filtro.Contacto));
             }
 
             if (filtro.Categoria.HasValue)
             {
                 query = query.Where(f =>
-                    f.Categoria == filtro.Categoria.Value);
+                    f.Categoria ==
+                    filtro.Categoria.Value);
             }
 
             if (!string.IsNullOrWhiteSpace(filtro.Funcao))
             {
                 query = query.Where(f =>
-                    f.Funcao.Contains(filtro.Funcao));
+                    f.Funcao.Contains(
+                        filtro.Funcao));
             }
 
-            if (!string.IsNullOrWhiteSpace(filtro.LocalTrabalho))
+            if (!string.IsNullOrWhiteSpace(
+                filtro.LocalTrabalho))
             {
                 query = query.Where(f =>
-                    f.LocalTrabalho.Contains(filtro.LocalTrabalho));
+                    f.LocalTrabalho.Contains(
+                        filtro.LocalTrabalho));
             }
 
             if (filtro.EstadoFuncionario.HasValue)
             {
                 query = query.Where(f =>
-                    f.Estado == filtro.EstadoFuncionario.Value);
+                    f.Estado ==
+                    filtro.EstadoFuncionario.Value);
             }
 
-            var funcionarios = await query.ToListAsync();
+            var ordemChefia =
+                OrdemChefiaExpression();
+
+            var ordemCategoria =
+                OrdemCategoriaExpression();
+
+            var funcionarios =
+                await query
+
+                    .OrderBy(ordemChefia)
+                    .ThenBy(ordemCategoria)
+                    .ThenBy(f => f.NomeCompleto)
+
+                    .ToListAsync();
 
             return Ok(funcionarios);
         }
+
+        // ============================================================
         // GET: api/Funcionarios/acessos/5
+        // ============================================================
+
         [Authorize(Roles = "Administrador")]
         [HttpGet("acessos/{id}")]
         public async Task<IActionResult> GetAcesso(int id)
@@ -469,27 +614,43 @@ public async Task<IActionResult> AtualizarMinhaFotografia(
             {
                 return NotFound(new
                 {
-                    mensagem = "Acesso não encontrado."
+                    mensagem =
+                        "Acesso não encontrado."
                 });
             }
 
             return Ok(new
             {
                 id = usuario.Id,
-                funcionarioId = usuario.FuncionarioId,
-                nomeCompleto = usuario.Funcionario != null
-                    ? usuario.Funcionario.NomeCompleto
-                    : null,
-                nip = usuario.Funcionario != null
-                    ? usuario.Funcionario.Nip
-                    : null,
-                nomeUsuario = usuario.NomeUsuario,
-                perfil = usuario.Perfil,
-                ativo = usuario.Ativo
+
+                funcionarioId =
+                    usuario.FuncionarioId,
+
+                nomeCompleto =
+                    usuario.Funcionario != null
+                        ? usuario.Funcionario.NomeCompleto
+                        : null,
+
+                nip =
+                    usuario.Funcionario != null
+                        ? usuario.Funcionario.Nip
+                        : null,
+
+                nomeUsuario =
+                    usuario.NomeUsuario,
+
+                perfil =
+                    usuario.Perfil,
+
+                ativo =
+                    usuario.Ativo
             });
         }
 
+        // ============================================================
         // PUT: api/Funcionarios/acessos/5
+        // ============================================================
+
         [Authorize(Roles = "Administrador")]
         [HttpPut("acessos/{id}")]
         public async Task<IActionResult> AtualizarAcesso(
@@ -503,72 +664,76 @@ public async Task<IActionResult> AtualizarMinhaFotografia(
             {
                 return NotFound(new
                 {
-                    mensagem = "Acesso não encontrado."
+                    mensagem =
+                        "Acesso não encontrado."
                 });
             }
 
-            if (string.IsNullOrWhiteSpace(dto.NomeUsuario))
+            if (string.IsNullOrWhiteSpace(
+                dto.NomeUsuario))
             {
                 return BadRequest(new
                 {
-                    mensagem = "O nome de usuário é obrigatório."
+                    mensagem =
+                        "O nome de usuário é obrigatório."
                 });
             }
 
-            // Verificar se outro usuário já utiliza o mesmo nome
-            var nomeExiste = await _context.Usuarios
-                .AnyAsync(u =>
-                    u.NomeUsuario == dto.NomeUsuario &&
-                    u.Id != id);
+            var nomeExiste =
+                await _context.Usuarios
+                    .AnyAsync(u =>
+                        u.NomeUsuario ==
+                        dto.NomeUsuario &&
+                        u.Id != id);
 
             if (nomeExiste)
             {
                 return BadRequest(new
                 {
-                    mensagem = "O nome de usuário já está em uso."
+                    mensagem =
+                        "O nome de usuário já está em uso."
                 });
             }
 
-            // Atualizar nome de usuário
-            usuario.NomeUsuario = dto.NomeUsuario;
+            usuario.NomeUsuario =
+                dto.NomeUsuario;
 
-            // Atualizar perfil
-            if (!string.IsNullOrWhiteSpace(dto.Perfil))
+            if (!string.IsNullOrWhiteSpace(
+                dto.Perfil))
             {
-                usuario.Perfil = dto.Perfil;
+                usuario.Perfil =
+                    dto.Perfil;
             }
 
-            // Alterar senha somente se uma nova senha foi informada
-            if (!string.IsNullOrWhiteSpace(dto.NovaSenha))
+            if (!string.IsNullOrWhiteSpace(
+                dto.NovaSenha))
             {
                 usuario.SenhaHash =
-                    BCrypt.Net.BCrypt.HashPassword(dto.NovaSenha);
+                    BCrypt.Net.BCrypt.HashPassword(
+                        dto.NovaSenha);
             }
 
             await _context.SaveChangesAsync();
 
             return Ok(new
             {
-                mensagem = "Dados de acesso atualizados com sucesso."
+                mensagem =
+                    "Dados de acesso atualizados com sucesso."
             });
         }
 
         // ============================================================
         // GET: api/Funcionarios/paginado
-        // LISTAGEM PAGINADA + ESTATÍSTICAS GERAIS
+        // LISTAGEM PAGINADA + ESTATÍSTICAS
         // ============================================================
 
         [Authorize(Roles = "Administrador")]
         [HttpGet("paginado")]
         public async Task<IActionResult> GetFuncionariosPaginado(
-     [FromQuery] int pagina = 1,
-     [FromQuery] int tamanhoPagina = 20,
-     [FromQuery] string? nome = null)
+            [FromQuery] int pagina = 1,
+            [FromQuery] int tamanhoPagina = 20,
+            [FromQuery] string? nome = null)
         {
-            // ========================================================
-            // VALIDAÇÃO DA PAGINAÇÃO
-            // ========================================================
-
             if (pagina < 1)
                 pagina = 1;
 
@@ -578,27 +743,12 @@ public async Task<IActionResult> AtualizarMinhaFotografia(
             if (tamanhoPagina > 100)
                 tamanhoPagina = 100;
 
-
-            // ========================================================
-            // NORMALIZAR PESQUISA
-            // ========================================================
-
             nome = nome?.Trim();
-
-
-            // ========================================================
-            // QUERY BASE
-            // ========================================================
 
             var query =
                 _context.Funcionarios
                     .AsNoTracking()
                     .AsQueryable();
-
-
-            // ========================================================
-            // PESQUISA GLOBAL POR NOME
-            // ========================================================
 
             if (!string.IsNullOrWhiteSpace(nome))
             {
@@ -607,46 +757,20 @@ public async Task<IActionResult> AtualizarMinhaFotografia(
                     f.NomeCompleto.Contains(nome));
             }
 
-
-            // ========================================================
-            // TOTAL DE REGISTOS
-            // ========================================================
-
             var totalRegistros =
                 await query.CountAsync();
-
-
-            // ========================================================
-            // TOTAL MASCULINO
-            // ========================================================
 
             var totalMasculino =
                 await query.CountAsync(
                     f => f.G == Genero.M);
 
-
-            // ========================================================
-            // TOTAL FEMININO
-            // ========================================================
-
             var totalFeminino =
                 await query.CountAsync(
                     f => f.G == Genero.F);
 
-
-            // ========================================================
-            // TOTAL DE FUNCIONÁRIOS ACTIVOS
-            // Estado = 0 → ACTIVO
-            // ========================================================
-
             var totalAtivos =
                 await query.CountAsync(
-                    f => f.Estado == 0);
-
-
-            // ========================================================
-            // TOTAL POR CATEGORIA
-            // ========================================================
+                    f => f.Estado == EstadoFuncionario.ACTIVO);
 
             var totaisPorCategoria =
                 await query
@@ -658,23 +782,13 @@ public async Task<IActionResult> AtualizarMinhaFotografia(
                     })
                     .ToListAsync();
 
-
-            // ========================================================
-            // TOTAL DE PÁGINAS
-            // ========================================================
-
             var totalPaginas =
                 (int)Math.Ceiling(
                     totalRegistros /
-                    (double)tamanhoPagina
-                );
+                    (double)tamanhoPagina);
 
-
-            // ========================================================
-            // CORRIGIR PÁGINA
-            // ========================================================
-
-            if (totalPaginas > 0 && pagina > totalPaginas)
+            if (totalPaginas > 0 &&
+                pagina > totalPaginas)
             {
                 pagina = totalPaginas;
             }
@@ -684,28 +798,28 @@ public async Task<IActionResult> AtualizarMinhaFotografia(
                 pagina = 1;
             }
 
+            var ordemChefia =
+                OrdemChefiaExpression();
 
-            // ========================================================
-            // FUNCIONÁRIOS DA PÁGINA ACTUAL
-            // ========================================================
+            var ordemCategoria =
+                OrdemCategoriaExpression();
 
             var funcionarios =
                 await query
 
-                    .OrderBy(f => f.NomeCompleto)
+                    .OrderBy(ordemChefia)
+                    .ThenBy(ordemCategoria)
+                    .ThenBy(f => f.NomeCompleto)
 
                     .Skip(
                         (pagina - 1) *
-                        tamanhoPagina
-                    )
+                        tamanhoPagina)
 
                     .Take(tamanhoPagina)
 
                     .Select(f => new
                     {
-                        // =================================================
                         // IDENTIFICAÇÃO
-                        // =================================================
 
                         f.Id,
                         f.NomeCompleto,
@@ -713,10 +827,7 @@ public async Task<IActionResult> AtualizarMinhaFotografia(
                         f.Bi,
                         f.Nuit,
 
-
-                        // =================================================
                         // DADOS PESSOAIS
-                        // =================================================
 
                         Genero = (int)f.G,
 
@@ -725,107 +836,79 @@ public async Task<IActionResult> AtualizarMinhaFotografia(
                         f.grauParentesco,
                         f.DataNascimento,
 
-
-                        // =================================================
                         // DADOS PROFISSIONAIS
-                        // =================================================
 
                         f.Categoria,
                         f.Funcao,
                         f.DataIngresso,
                         f.LocalTrabalho,
 
-
-                        // =================================================
                         // CONTACTOS
-                        // =================================================
 
                         f.Contacto,
                         f.C_Alternativo,
                         f.C_Familiar,
 
-
-                        // =================================================
                         // LOCALIZAÇÃO
-                        // =================================================
 
                         f.Bairro,
                         f.Quarterao_N,
                         f.Casa_N,
 
-
-                        // =================================================
                         // ESTADO
-                        // =================================================
 
                         f.Estado,
 
-
-                        // =================================================
                         // FOTOGRAFIA
-                        // =================================================
 
                         f.FotografiaUrl,
 
-
-                        // =================================================
                         // ORGANIZAÇÃO
-                        // =================================================
 
-                        SeccaoId = f.SeccaoId,
+                        SeccaoId =
+                            f.SeccaoId,
 
                         SeccaoNome =
                             f.Seccao != null
                                 ? f.Seccao.Nome
                                 : "Sem secção",
 
-
-                        // =================================================
-                        // ACESSO AO SISTEMA
-                        // =================================================
+                        // ACESSO
 
                         TemUsuario =
                             _context.Usuarios
                                 .Any(u =>
-                                    u.FuncionarioId == f.Id)
+                                    u.FuncionarioId ==
+                                    f.Id)
                     })
 
                     .ToListAsync();
 
-
-            // ========================================================
-            // CONVERTER CATEGORIAS PARA SIGLAS
-            // ========================================================
-
             var categorias =
-    totaisPorCategoria
-        .ToDictionary(
-            x => x.Categoria switch
-            {
-                Categoria.GUA => "GUA",
-                Categoria.SC => "SC",
-                Categoria.PC => "PC",
-                Categoria.SAR => "SAR",
-                Categoria.SAP => "SAP",
-                Categoria.SUB => "SUB",
-                Categoria.INS => "INS",
-                Categoria.INP => "INP",
-                Categoria.ASP => "ASP",
-                Categoria.SUP => "SUP",
-                Categoria.SPP => "SPP",
-                Categoria.IPG => "IGP",
-                Categoria.COM => "COM",
-                Categoria.AJC => "AJC",
-                Categoria.PAC => "PAC",
-                _ => x.Categoria.ToString()
-            },
-            x => x.Total
-        );
+                totaisPorCategoria
+                    .ToDictionary(
+                        x => x.Categoria switch
+                        {
+                            Categoria.GUA => "GUA",
+                            Categoria.SC => "SC",
+                            Categoria.PC => "PC",
+                            Categoria.SAR => "SAR",
+                            Categoria.SAP => "SAP",
+                            Categoria.SUB => "SUB",
+                            Categoria.INS => "INS",
+                            Categoria.INP => "INP",
+                            Categoria.ASP => "ASP",
+                            Categoria.SUP => "SUP",
+                            Categoria.SPP => "SPP",
+                            Categoria.IPG => "IGP",
+                            Categoria.COM => "COM",
+                            Categoria.AJC => "AJC",
+                            Categoria.PAC => "PAC",
 
-
-            // ========================================================
-            // RESPOSTA
-            // ========================================================
+                            _ => x.Categoria.ToString()
+                        },
+                        x => x.Total
+                    );
 
             return Ok(new
             {
@@ -841,70 +924,132 @@ public async Task<IActionResult> AtualizarMinhaFotografia(
                 totalFeminino,
                 totalAtivos,
 
-                totaisPorCategoria = categorias,
+                totaisPorCategoria =
+                    categorias,
 
-                dados = funcionarios
+                dados =
+                    funcionarios
             });
         }
+
+        // ============================================================
         // POST: api/Funcionarios
+        // ============================================================
+
         [Authorize(Roles = "Administrador")]
         [HttpPost]
         public async Task<IActionResult> CriarFuncionario(
             FuncionarioCreateDto dto)
         {
-            // Verificar se o nome de usuário já existe
-            var usuarioExiste = await _context.Usuarios
-                .AnyAsync(u => u.NomeUsuario == dto.NomeUsuario);
+            var usuarioExiste =
+                await _context.Usuarios
+                    .AnyAsync(u =>
+                        u.NomeUsuario ==
+                        dto.NomeUsuario);
 
             if (usuarioExiste)
             {
                 return BadRequest(new
                 {
-                    mensagem = "O nome de usuário já está em uso."
+                    mensagem =
+                        "O nome de usuário já está em uso."
                 });
             }
 
-            // Criar funcionário
             var funcionario = new Funcionario
             {
-                NomeCompleto = dto.NomeCompleto,
-                Nip = dto.Nip,
-                Bi = dto.Bi,
-                Nuit = dto.Nuit,
-                G = dto.Genero,
-                estado_civil = dto.EstadoCivil,
-                nivelAcademico = dto.NivelAcademico,
-                grauParentesco = dto.GrauParentesco,
-                Categoria = dto.Categoria,
-                Funcao = dto.Funcao,
-                Contacto = dto.Contacto,
-                C_Alternativo = dto.C_Alternativo,
-                C_Familiar = dto.C_Familiar,
-                DataNascimento = dto.DataNascimento,
-                DataIngresso = dto.DataIngresso,
-                LocalTrabalho = dto.LocalTrabalho,
-                Bairro = dto.Bairro,
-                Quarterao_N = dto.Quarterao_N,
-                Casa_N = dto.Casa_N,
-                Estado = dto.EstadoFuncionario,
-                FotografiaUrl = dto.FotografiaUrl,
-                DataCadastro = DateTime.Now
+                NomeCompleto =
+                    dto.NomeCompleto,
+
+                Nip =
+                    dto.Nip,
+
+                Bi =
+                    dto.Bi,
+
+                Nuit =
+                    dto.Nuit,
+
+                G =
+                    dto.Genero,
+
+                estado_civil =
+                    dto.EstadoCivil,
+
+                nivelAcademico =
+                    dto.NivelAcademico,
+
+                grauParentesco =
+                    dto.GrauParentesco,
+
+                Categoria =
+                    dto.Categoria,
+
+                Funcao =
+                    dto.Funcao,
+
+                Contacto =
+                    dto.Contacto,
+
+                C_Alternativo =
+                    dto.C_Alternativo,
+
+                C_Familiar =
+                    dto.C_Familiar,
+
+                DataNascimento =
+                    dto.DataNascimento,
+
+                DataIngresso =
+                    dto.DataIngresso,
+
+                LocalTrabalho =
+                    dto.LocalTrabalho,
+
+                Bairro =
+                    dto.Bairro,
+
+                Quarterao_N =
+                    dto.Quarterao_N,
+
+                Casa_N =
+                    dto.Casa_N,
+
+                Estado =
+                    dto.EstadoFuncionario,
+
+                FotografiaUrl =
+                    dto.FotografiaUrl,
+
+                DataCadastro =
+                    DateTime.Now
             };
 
-            _context.Funcionarios.Add(funcionario);
+            _context.Funcionarios.Add(
+                funcionario);
 
-            // Salvar primeiro para obter o ID do funcionário
             await _context.SaveChangesAsync();
 
-            // Criar usuário associado ao funcionário
             var usuario = new Usuario
             {
-                NomeUsuario = dto.NomeUsuario,
-                SenhaHash = BCrypt.Net.BCrypt.HashPassword(dto.Senha),
-                Perfil = "Funcionario",
-                FuncionarioId = funcionario.Id,
-                Ativo = true,
-                DataCadastro = DateTime.Now
+                NomeUsuario =
+                    dto.NomeUsuario,
+
+                SenhaHash =
+                    BCrypt.Net.BCrypt.HashPassword(
+                        dto.Senha),
+
+                Perfil =
+                    "Funcionario",
+
+                FuncionarioId =
+                    funcionario.Id,
+
+                Ativo =
+                    true,
+
+                DataCadastro =
+                    DateTime.Now
             };
 
             _context.Usuarios.Add(usuario);
@@ -913,22 +1058,36 @@ public async Task<IActionResult> AtualizarMinhaFotografia(
 
             return CreatedAtAction(
                 nameof(GetFuncionario),
-                new { id = funcionario.Id },
                 new
                 {
-                    mensagem = "Funcionário e usuário criados com sucesso.",
-                    funcionarioId = funcionario.Id,
-                    nomeUsuario = usuario.NomeUsuario
+                    id =
+                        funcionario.Id
+                },
+                new
+                {
+                    mensagem =
+                        "Funcionário e usuário criados com sucesso.",
+
+                    funcionarioId =
+                        funcionario.Id,
+
+                    nomeUsuario =
+                        usuario.NomeUsuario
                 });
         }
 
+        // ============================================================
         // GET: api/Funcionarios/5
+        // ============================================================
+
         [Authorize(Roles = "Administrador")]
         [HttpGet("{id}")]
-        public async Task<IActionResult> GetFuncionario(int id)
+        public async Task<IActionResult> GetFuncionario(
+            int id)
         {
-            var funcionario = await _context.Funcionarios
-                .FindAsync(id);
+            var funcionario =
+                await _context.Funcionarios
+                    .FindAsync(id);
 
             if (funcionario == null)
             {
@@ -937,109 +1096,173 @@ public async Task<IActionResult> AtualizarMinhaFotografia(
 
             return Ok(funcionario);
         }
+
+        // ============================================================
         // PUT: api/Funcionarios/5
+        // ============================================================
+
         [Authorize(Roles = "Administrador")]
         [HttpPut("{id}")]
         public async Task<IActionResult> AtualizarFuncionario(
             int id,
             FuncionarioUpdateDto dto)
         {
-            var funcionario = await _context.Funcionarios
-                .FindAsync(id);
+            var funcionario =
+                await _context.Funcionarios
+                    .FindAsync(id);
 
             if (funcionario == null)
             {
-                return NotFound("Funcionário não encontrado.");
+                return NotFound(
+                    "Funcionário não encontrado.");
             }
 
-            funcionario.NomeCompleto = dto.NomeCompleto;
-            funcionario.Nip = dto.Nip;
-            funcionario.Bi = dto.Bi;
-            funcionario.Nuit = dto.Nuit;
+            funcionario.NomeCompleto =
+                dto.NomeCompleto;
 
-            funcionario.G = dto.Genero;
-            funcionario.estado_civil = dto.EstadoCivil;
-            funcionario.nivelAcademico = dto.NivelAcademico;
-            funcionario.grauParentesco = dto.GrauParentesco;
+            funcionario.Nip =
+                dto.Nip;
 
-            funcionario.Contacto = dto.Contacto;
-            funcionario.C_Alternativo = dto.C_Alternativo;
-            funcionario.C_Familiar = dto.C_Familiar;
+            funcionario.Bi =
+                dto.Bi;
 
-            funcionario.DataNascimento = dto.DataNascimento;
-            funcionario.DataIngresso = dto.DataIngresso;
+            funcionario.Nuit =
+                dto.Nuit;
 
-            funcionario.LocalTrabalho = dto.LocalTrabalho;
-            funcionario.Bairro = dto.Bairro;
-            funcionario.Quarterao_N = dto.Quarterao_N;
-            funcionario.Casa_N = dto.Casa_N;
+            funcionario.G =
+                dto.Genero;
 
-            funcionario.Categoria = dto.Categoria;
-            funcionario.Funcao = dto.Funcao;
-            funcionario.Estado = dto.EstadoFuncionario;
+            funcionario.estado_civil =
+                dto.EstadoCivil;
+
+            funcionario.nivelAcademico =
+                dto.NivelAcademico;
+
+            funcionario.grauParentesco =
+                dto.GrauParentesco;
+
+            funcionario.Contacto =
+                dto.Contacto;
+
+            funcionario.C_Alternativo =
+                dto.C_Alternativo;
+
+            funcionario.C_Familiar =
+                dto.C_Familiar;
+
+            funcionario.DataNascimento =
+                dto.DataNascimento;
+
+            funcionario.DataIngresso =
+                dto.DataIngresso;
+
+            funcionario.LocalTrabalho =
+                dto.LocalTrabalho;
+
+            funcionario.Bairro =
+                dto.Bairro;
+
+            funcionario.Quarterao_N =
+                dto.Quarterao_N;
+
+            funcionario.Casa_N =
+                dto.Casa_N;
+
+            funcionario.Categoria =
+                dto.Categoria;
+
+            funcionario.Funcao =
+                dto.Funcao;
+
+            funcionario.Estado =
+                dto.EstadoFuncionario;
 
             // NÃO alterar FotografiaUrl.
-            // A fotografia possui um processo próprio.
+            // A fotografia possui processo próprio.
 
             await _context.SaveChangesAsync();
 
             return Ok(new
             {
-                mensagem = "Funcionário atualizado com sucesso.",
+                mensagem =
+                    "Funcionário atualizado com sucesso.",
+
                 funcionario
             });
         }
+
+        // ============================================================
         // POST: api/Funcionarios/5/criar-acesso
+        // ============================================================
+
         [Authorize(Roles = "Administrador")]
         [HttpPost("{id}/criar-acesso")]
         public async Task<IActionResult> CriarAcesso(
             int id,
             CriarAcessoFuncionarioDto dto)
         {
-            var funcionario = await _context.Funcionarios
-                .FindAsync(id);
+            var funcionario =
+                await _context.Funcionarios
+                    .FindAsync(id);
 
             if (funcionario == null)
             {
                 return NotFound(new
                 {
-                    mensagem = "Funcionário não encontrado."
+                    mensagem =
+                        "Funcionário não encontrado."
                 });
             }
 
-            // Verificar se o funcionário já possui usuário
-            var funcionarioTemUsuario = await _context.Usuarios
-                .AnyAsync(u => u.FuncionarioId == id);
+            var funcionarioTemUsuario =
+                await _context.Usuarios
+                    .AnyAsync(u =>
+                        u.FuncionarioId == id);
 
             if (funcionarioTemUsuario)
             {
                 return BadRequest(new
                 {
-                    mensagem = "Este funcionário já possui um usuário."
+                    mensagem =
+                        "Este funcionário já possui um usuário."
                 });
             }
 
-            // Verificar se o nome de usuário já existe
-            var nomeUsuarioExiste = await _context.Usuarios
-                .AnyAsync(u => u.NomeUsuario == dto.NomeUsuario);
+            var nomeUsuarioExiste =
+                await _context.Usuarios
+                    .AnyAsync(u =>
+                        u.NomeUsuario ==
+                        dto.NomeUsuario);
 
             if (nomeUsuarioExiste)
             {
                 return BadRequest(new
                 {
-                    mensagem = "O nome de usuário já está em uso."
+                    mensagem =
+                        "O nome de usuário já está em uso."
                 });
             }
 
-            // Criar usuário
             var usuario = new Usuario
             {
-                NomeUsuario = dto.NomeUsuario,
-                SenhaHash = BCrypt.Net.BCrypt.HashPassword(dto.Senha),
-                Perfil = "Funcionario",
-                FuncionarioId = funcionario.Id,
-                Ativo = true,
-                DataCadastro = DateTime.Now
+                NomeUsuario =
+                    dto.NomeUsuario,
+
+                SenhaHash =
+                    BCrypt.Net.BCrypt.HashPassword(
+                        dto.Senha),
+
+                Perfil =
+                    "Funcionario",
+
+                FuncionarioId =
+                    funcionario.Id,
+
+                Ativo =
+                    true,
+
+                DataCadastro =
+                    DateTime.Now
             };
 
             _context.Usuarios.Add(usuario);
@@ -1048,208 +1271,294 @@ public async Task<IActionResult> AtualizarMinhaFotografia(
 
             return Ok(new
             {
-                mensagem = "Acesso criado com sucesso.",
-                usuario = usuario.NomeUsuario,
-                funcionarioId = funcionario.Id
+                mensagem =
+                    "Acesso criado com sucesso.",
+
+                usuario =
+                    usuario.NomeUsuario,
+
+                funcionarioId =
+                    funcionario.Id
             });
         }
 
+        // ============================================================
         // GET: api/Funcionarios/acessos
+        // ============================================================
+
         [Authorize(Roles = "Administrador")]
         [HttpGet("acessos")]
         public async Task<IActionResult> ListarAcessos()
         {
-            var acessos = await _context.Usuarios
-                .Include(u => u.Funcionario)
-                .OrderBy(u => u.Funcionario!.NomeCompleto)
-                .Select(u => new
-                {
-                    u.Id,
-                    u.NomeUsuario,
-                    u.Perfil,
-                    u.Ativo,
-                    u.DataCadastro,
+            var ordemChefia =
+                OrdemChefiaExpression();
 
-                    FuncionarioId = u.FuncionarioId,
+            var ordemCategoria =
+                OrdemCategoriaExpression();
 
-                    NomeCompleto = u.Funcionario != null
-                        ? u.Funcionario.NomeCompleto
-                        : null,
+            var acessos =
+                await _context.Usuarios
+                    .Include(u => u.Funcionario)
 
-                    Nip = u.Funcionario != null
-                        ? u.Funcionario.Nip
-                        : null,
+                    .OrderBy(u =>
+                        u.Funcionario != null
+                            ? ordemChefia.Compile()(
+                                u.Funcionario)
+                            : 9999)
 
-                    FotografiaUrl = u.Funcionario != null
-                        ? u.Funcionario.FotografiaUrl
-                        : null
-                })
-                .ToListAsync();
+                    .ThenBy(u =>
+                        u.Funcionario != null
+                            ? ordemCategoria.Compile()(
+                                u.Funcionario)
+                            : 9999)
+
+                    .ThenBy(u =>
+                        u.Funcionario != null
+                            ? u.Funcionario.NomeCompleto
+                            : u.NomeUsuario)
+
+                    .Select(u => new
+                    {
+                        u.Id,
+                        u.NomeUsuario,
+                        u.Perfil,
+                        u.Ativo,
+                        u.DataCadastro,
+
+                        FuncionarioId =
+                            u.FuncionarioId,
+
+                        NomeCompleto =
+                            u.Funcionario != null
+                                ? u.Funcionario.NomeCompleto
+                                : null,
+
+                        Nip =
+                            u.Funcionario != null
+                                ? u.Funcionario.Nip
+                                : null,
+
+                        FotografiaUrl =
+                            u.Funcionario != null
+                                ? u.Funcionario.FotografiaUrl
+                                : null
+                    })
+
+                    .ToListAsync();
 
             return Ok(acessos);
         }
 
-       
+        // ============================================================
         // PUT: api/Funcionarios/5/seccao
+        // ============================================================
+
         [Authorize(Roles = "Administrador")]
         [HttpPut("{id}/seccao")]
         public async Task<IActionResult> AtribuirSeccao(
             int id,
             [FromBody] int seccaoId)
         {
-            // ==========================================
-            // PROCURAR FUNCIONÁRIO
-            // ==========================================
-
-            var funcionario = await _context.Funcionarios
-                .FirstOrDefaultAsync(f => f.Id == id);
+            var funcionario =
+                await _context.Funcionarios
+                    .FirstOrDefaultAsync(
+                        f => f.Id == id);
 
             if (funcionario == null)
             {
                 return NotFound(new
                 {
-                    mensagem = "Funcionário não encontrado."
+                    mensagem =
+                        "Funcionário não encontrado."
                 });
             }
 
-            // ==========================================
-            // VALIDAR SECÇÃO
-            // ==========================================
-
-            var seccao = await _context.Seccoes
-                .FirstOrDefaultAsync(s =>
-                    s.Id == seccaoId &&
-                    s.Ativo);
+            var seccao =
+                await _context.Seccoes
+                    .FirstOrDefaultAsync(s =>
+                        s.Id == seccaoId &&
+                        s.Ativo);
 
             if (seccao == null)
             {
                 return BadRequest(new
                 {
-                    mensagem = "A secção selecionada não existe ou está inativa."
+                    mensagem =
+                        "A secção selecionada não existe ou está inativa."
                 });
             }
 
-            // ==========================================
-            // ATRIBUIR SECÇÃO
-            // ==========================================
-
-            funcionario.SeccaoId = seccaoId;
+            funcionario.SeccaoId =
+                seccaoId;
 
             await _context.SaveChangesAsync();
 
-            // ==========================================
-            // RESPOSTA
-            // ==========================================
-
             return Ok(new
             {
-                mensagem = "Secção atribuída com sucesso.",
-                funcionarioId = funcionario.Id,
-                funcionario = funcionario.NomeCompleto,
-                seccaoId = seccao.Id,
-                seccao = seccao.Nome
+                mensagem =
+                    "Secção atribuída com sucesso.",
+
+                funcionarioId =
+                    funcionario.Id,
+
+                funcionario =
+                    funcionario.NomeCompleto,
+
+                seccaoId =
+                    seccao.Id,
+
+                seccao =
+                    seccao.Nome
             });
         }
 
         // ============================================================
-        // FUNCIONÁRIOS SEM SECÇÃO
+        // GET: api/Funcionarios/sem-seccao
         // ============================================================
 
-        // GET: api/Funcionarios/sem-seccao
         [HttpGet("sem-seccao")]
         [Authorize(Roles = "Administrador")]
         public async Task<IActionResult> GetFuncionariosSemSeccao()
         {
-            var funcionarios = await _context.Funcionarios
-                .AsNoTracking()
-                .Where(f => f.SeccaoId == null)
-                .OrderBy(f => f.NomeCompleto)
-                .Select(f => new
-                {
-                    f.Id,
-                    f.NomeCompleto,
-                    f.Nip,
-                    f.Bi,
-                    f.Nuit,
-                    f.Contacto,
-                    f.Funcao,
-                    f.LocalTrabalho,
-                    f.Estado,
-                    f.FotografiaUrl,
-                    TemUsuario = _context.Usuarios.Any(u => u.FuncionarioId == f.Id),
-                    f.SeccaoId
-                })
-                .ToListAsync();
+            var ordemChefia =
+                OrdemChefiaExpression();
+
+            var ordemCategoria =
+                OrdemCategoriaExpression();
+
+            var funcionarios =
+                await _context.Funcionarios
+                    .AsNoTracking()
+
+                    .Where(f =>
+                        f.SeccaoId == null)
+
+                    .OrderBy(ordemChefia)
+                    .ThenBy(ordemCategoria)
+                    .ThenBy(f => f.NomeCompleto)
+
+                    .Select(f => new
+                    {
+                        f.Id,
+                        f.NomeCompleto,
+                        f.Nip,
+                        f.Bi,
+                        f.Nuit,
+                        f.Contacto,
+                        f.Funcao,
+                        f.Categoria,
+                        f.LocalTrabalho,
+                        f.Estado,
+                        f.FotografiaUrl,
+                        TemUsuario =
+                            _context.Usuarios
+                                .Any(u =>
+                                    u.FuncionarioId ==
+                                    f.Id),
+                        f.SeccaoId
+                    })
+
+                    .ToListAsync();
 
             return Ok(funcionarios);
         }
 
         // ============================================================
-        // FUNCIONÁRIOS JÁ ENQUADRADOS
+        // GET: api/Funcionarios/com-seccao
         // ============================================================
 
-        // GET: api/Funcionarios/com-seccao
         [HttpGet("com-seccao")]
         [Authorize(Roles = "Administrador")]
         public async Task<IActionResult> GetFuncionariosComSeccao(
             int? seccaoId = null)
         {
-            var consulta = _context.Funcionarios
-                .AsNoTracking()
-                .Include(f => f.Seccao)
-                .Where(f => f.SeccaoId != null)
-                .AsQueryable();
+            var consulta =
+                _context.Funcionarios
+                    .AsNoTracking()
+                    .Include(f => f.Seccao)
+                    .Where(f =>
+                        f.SeccaoId != null)
+                    .AsQueryable();
 
-            if (seccaoId.HasValue && seccaoId.Value > 0)
+            if (seccaoId.HasValue &&
+                seccaoId.Value > 0)
             {
-                consulta = consulta
-                    .Where(f => f.SeccaoId == seccaoId.Value);
+                consulta =
+                    consulta.Where(f =>
+                        f.SeccaoId ==
+                        seccaoId.Value);
             }
 
-            var funcionarios = await consulta
-                .OrderBy(f => f.Seccao!.Nome)
-                .ThenBy(f => f.NomeCompleto)
-                .Select(f => new
-                {
-                    f.Id,
-                    f.NomeCompleto,
-                    f.Nip,
-                    f.Bi,
-                    f.Nuit,
-                    f.Contacto,
-                    f.Funcao,
-                    f.LocalTrabalho,
-                    f.Estado,
-                    f.FotografiaUrl,
-                    SeccaoId = f.SeccaoId,
-                    Seccao = f.Seccao != null
-                        ? f.Seccao.Nome
-                        : null
-                })
-                .ToListAsync();
+            var ordemChefia =
+                OrdemChefiaExpression();
+
+            var ordemCategoria =
+                OrdemCategoriaExpression();
+
+            var funcionarios =
+                await consulta
+
+                    .OrderBy(ordemChefia)
+                    .ThenBy(ordemCategoria)
+                    .ThenBy(f => f.NomeCompleto)
+
+                    .Select(f => new
+                    {
+                        f.Id,
+                        f.NomeCompleto,
+                        f.Nip,
+                        f.Bi,
+                        f.Nuit,
+                        f.Contacto,
+                        f.Funcao,
+                        f.Categoria,
+                        f.LocalTrabalho,
+                        f.Estado,
+                        f.FotografiaUrl,
+
+                        SeccaoId =
+                            f.SeccaoId,
+
+                        Seccao =
+                            f.Seccao != null
+                                ? f.Seccao.Nome
+                                : null
+                    })
+
+                    .ToListAsync();
 
             return Ok(funcionarios);
         }
 
+        // ============================================================
         // DELETE: api/Funcionarios/5
+        // ============================================================
+
         [Authorize(Roles = "Administrador")]
         [HttpDelete("{id}")]
-        public async Task<IActionResult> InativarFuncionario(int id)
+        public async Task<IActionResult> InativarFuncionario(
+            int id)
         {
-            var funcionario = await _context.Funcionarios.FindAsync(id);
+            var funcionario =
+                await _context.Funcionarios
+                    .FindAsync(id);
 
             if (funcionario == null)
-                return NotFound("Funcionário não encontrado.");
+            {
+                return NotFound(
+                    "Funcionário não encontrado.");
+            }
 
-            funcionario.Estado = EstadoFuncionario.INACTIVO;
+            funcionario.Estado =
+                EstadoFuncionario.INACTIVO;
 
             await _context.SaveChangesAsync();
 
             return Ok(new
             {
-                mensagem = "Funcionário inativado com sucesso."
+                mensagem =
+                    "Funcionário inativado com sucesso."
             });
         }
-
     }
 }
