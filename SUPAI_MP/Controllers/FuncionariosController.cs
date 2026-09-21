@@ -23,119 +23,174 @@ namespace supai_mp.Controllers
         }
 
         // ============================================================
-        // ORDENAÇÃO HIERÁRQUICA GLOBAL
+        // ORDENAÇÃO GLOBAL DO SUPAI-MP
         // ============================================================
 
         /*
-         * ORDEM DAS CHEFIAS PRINCIPAIS:
+         * IMPORTANTE:
+         * A base de dados atualmente guarda a função como TEXTO.
          *
-         * 1  - Comandante da SUPAI-MP
-         * 2  - Chefe de Operações
-         * 3  - Chefe de Doutrina e Ética Policial
-         * 4  - Chefe de PEAC
-         * 5  - Chefe de Segurança Pessoal
-         * 6  - Chefe de Protecção de Objectos
-         * 7  - Chefe de Logística e Finanças
-         * 8  - Chefe de Gestão de Pessoal e Formação
-         * 9  - Chefe da Secretaria
-         * 10 - Chefe de Informação Operativa
-         * 11 - Chefe de Informação Interna
+         * Exemplos reais encontrados:
          *
-         * Todos os restantes funcionários recebem 9999
-         * e passam para a ordenação por categoria.
+         * COMANDANTE DA SUBUNIDADE
+         * CHEFE DAS OPERACOES
+         * CHEFE DA DOUTRINA E ETICA
+         * CHEFE DA PEAC
+         * CHEFE DE SEGURANCA PESSOAL
+         * CHEFE DE PROTECCAO DE OBJECTOS
+         * CHEFE DA LOGISTICA E FINANCAS
+         * CHEFE DE GESTAO DE PESSOAL E FORMACAO
+         * CHEFE DA SECRETARIA
+         * CHEFE DE INFORMACAO OPERATIVA
+         * CHEFE DE INFORMACAO INTERNA
          */
 
-        private static Expression<Func<Funcionario, int>>
-            OrdemChefiaExpression()
-        {
-            return f =>
-                f.Funcao == "ChefeDeCMD" ||
-                f.Funcao == "COMANDANTE DA SUPAI_MP"
+        private static readonly Expression<Func<Funcionario, int>>
+            OrdemGrupoChefia = f =>
+                f.Funcao == "COMANDANTE DA SUBUNIDADE" ||
+                f.Funcao == "CHEFE DAS OPERACOES" ||
+                f.Funcao == "CHEFE DA DOUTRINA E ETICA" ||
+                f.Funcao == "CHEFE DA PEAC" ||
+                f.Funcao == "CHEFE DE SEGURANCA PESSOAL" ||
+                f.Funcao == "CHEFE DE PROTECCAO DE OBJECTOS" ||
+                f.Funcao == "CHEFE DA LOGISTICA E FINANCAS" ||
+                f.Funcao == "CHEFE DE GESTAO DE PESSOAL E FORMACAO" ||
+                f.Funcao == "CHEFE DA SECRETARIA" ||
+                f.Funcao == "CHEFE DE INFORMACAO OPERATIVA" ||
+                f.Funcao == "CHEFE DE INFORMACAO INTERNA"
+                    ? 0
+                    : 1;
+
+        private static readonly Expression<Func<Funcionario, int>>
+            OrdemChefia = f =>
+                f.Funcao == "COMANDANTE DA SUBUNIDADE"
                     ? 1
+                    : f.Funcao == "CHEFE DAS OPERACOES"
+                        ? 2
+                        : f.Funcao == "CHEFE DA DOUTRINA E ETICA"
+                            ? 3
+                            : f.Funcao == "CHEFE DA PEAC"
+                                ? 4
+                                : f.Funcao == "CHEFE DE SEGURANCA PESSOAL"
+                                    ? 5
+                                    : f.Funcao == "CHEFE DE PROTECCAO DE OBJECTOS"
+                                        ? 6
+                                        : f.Funcao == "CHEFE DA LOGISTICA E FINANCAS"
+                                            ? 7
+                                            : f.Funcao == "CHEFE DE GESTAO DE PESSOAL E FORMACAO"
+                                                ? 8
+                                                : f.Funcao == "CHEFE DA SECRETARIA"
+                                                    ? 9
+                                                    : f.Funcao == "CHEFE DE INFORMACAO OPERATIVA"
+                                                        ? 10
+                                                        : f.Funcao == "CHEFE DE INFORMACAO INTERNA"
+                                                            ? 11
+                                                            : 999;
 
-                : f.Funcao == "ChefeDeOP" ||
-                  f.Funcao == "CHEFE DE SEÇÃO DAS OPERAÇÕES"
-                    ? 2
+        private static readonly Expression<Func<Funcionario, int>>
+            OrdemCategoria = f =>
+                f.Categoria == Categoria.IPG
+                    ? 1
+                    : f.Categoria == Categoria.COM
+                        ? 2
+                        : f.Categoria == Categoria.PAC
+                            ? 3
+                            : f.Categoria == Categoria.AJC
+                                ? 4
+                                : f.Categoria == Categoria.SPP
+                                    ? 5
+                                    : f.Categoria == Categoria.SUP
+                                        ? 6
+                                        : f.Categoria == Categoria.ASP
+                                            ? 7
+                                            : f.Categoria == Categoria.INP
+                                                ? 8
+                                                : f.Categoria == Categoria.INS
+                                                    ? 9
+                                                    : f.Categoria == Categoria.SUB
+                                                        ? 10
+                                                        : f.Categoria == Categoria.SAP
+                                                            ? 11
+                                                            : f.Categoria == Categoria.SAR
+                                                                ? 12
+                                                                : f.Categoria == Categoria.PC
+                                                                    ? 13
+                                                                    : f.Categoria == Categoria.SC
+                                                                        ? 14
+                                                                        : f.Categoria == Categoria.GUA
+                                                                            ? 15
+                                                                            : 999;
 
-                : f.Funcao == "ChefeDeDEP" ||
-                  f.Funcao == "CHEFE DE SEÇÃO DE DOUTRINA E ÉTICA POLICIAL"
-                    ? 3
-
-                : f.Funcao == "ChefeDePEAC" ||
-                  f.Funcao == "CHEFE DE SEÇÃO DE PEAC"
-                    ? 4
-
-                : f.Funcao == "ChefeDeSP" ||
-                  f.Funcao == "CHEFE DE SEÇÃO DE SEGURANÇA PESSOAL"
-                    ? 5
-
-                : f.Funcao == "ChefeDePO" ||
-                  f.Funcao == "CHEFE DE SEÇÃO DE PROTECÇÃO DE OBJECTO"
-                    ? 6
-
-                : f.Funcao == "ChefeDeLogistica" ||
-                  f.Funcao == "CHEFE DE SEÇÃO DE LOGÍSTICA E FINANÇAS"
-                    ? 7
-
-                : f.Funcao == "ChefeDeGPF" ||
-                  f.Funcao == "CHEFE DE SEÇÃO DE GESTÃO DE PESSOAL E FORMAÇÃO"
-                    ? 8
-
-                : f.Funcao == "ChefeDeSECRE" ||
-                  f.Funcao == "CHEFE DE SEÇÃO DA SECRETARIA"
-                    ? 9
-
-                : f.Funcao == "ChefeDeIO" ||
-                  f.Funcao == "CHEFE DE SEÇÃO DE INFORMAÇÃO OPERATIVA"
-                    ? 10
-
-                : f.Funcao == "ChefeDeII" ||
-                  f.Funcao == "CHEFE DE SEÇÃO DE INFORMAÇÃO INTERNA"
-                    ? 11
-
-                : 9999;
+        private static IQueryable<Funcionario>
+            AplicarOrdenacaoGlobal(IQueryable<Funcionario> query)
+        {
+            return query
+                .OrderBy(OrdemGrupoChefia)
+                .ThenBy(OrdemChefia)
+                .ThenBy(OrdemCategoria)
+                .ThenBy(f => f.NomeCompleto);
         }
 
-        /*
-         * ORDEM DAS CATEGORIAS:
-         *
-         * 1  - Inspector-Geral
-         * 2  - Comissário
-         * 3  - 1.º Adjunto Comissário
-         * 4  - Adjunto Comissário
-         * 5  - Superintendente Principal
-         * 6  - Superintendente
-         * 7  - Adjunto Superintendente
-         * 8  - Inspector Principal
-         * 9  - Inspector
-         * 10 - Subinspector
-         * 11 - Sargento Principal
-         * 12 - Sargento
-         * 13 - 1.º Cabo
-         * 14 - 2.º Cabo
-         * 15 - Guarda
-         */
+        // ============================================================
+        // ORDENAÇÃO EM MEMÓRIA
+        // Usada quando já carregámos entidades para depois projectar.
+        // ============================================================
 
-        private static Expression<Func<Funcionario, int>>
-            OrdemCategoriaExpression()
+        private static int ObterOrdemChefiaMemoria(Funcionario funcionario)
         {
-            return f =>
-                f.Categoria == Categoria.IPG ? 1 :
-                f.Categoria == Categoria.COM ? 2 :
-                f.Categoria == Categoria.PAC ? 3 :
-                f.Categoria == Categoria.AJC ? 4 :
-                f.Categoria == Categoria.SPP ? 5 :
-                f.Categoria == Categoria.SUP ? 6 :
-                f.Categoria == Categoria.ASP ? 7 :
-                f.Categoria == Categoria.INP ? 8 :
-                f.Categoria == Categoria.INS ? 9 :
-                f.Categoria == Categoria.SUB ? 10 :
-                f.Categoria == Categoria.SAP ? 11 :
-                f.Categoria == Categoria.SAR ? 12 :
-                f.Categoria == Categoria.PC ? 13 :
-                f.Categoria == Categoria.SC ? 14 :
-                f.Categoria == Categoria.GUA ? 15 :
-                9999;
+            return funcionario.Funcao?.Trim() switch
+            {
+                "COMANDANTE DA SUBUNIDADE" => 1,
+                "CHEFE DAS OPERACOES" => 2,
+                "CHEFE DA DOUTRINA E ETICA" => 3,
+                "CHEFE DA PEAC" => 4,
+                "CHEFE DE SEGURANCA PESSOAL" => 5,
+                "CHEFE DE PROTECCAO DE OBJECTOS" => 6,
+                "CHEFE DA LOGISTICA E FINANCAS" => 7,
+                "CHEFE DE GESTAO DE PESSOAL E FORMACAO" => 8,
+                "CHEFE DA SECRETARIA" => 9,
+                "CHEFE DE INFORMACAO OPERATIVA" => 10,
+                "CHEFE DE INFORMACAO INTERNA" => 11,
+                _ => 999
+            };
+        }
+
+        private static int ObterOrdemCategoriaMemoria(
+            Categoria categoria)
+        {
+            return categoria switch
+            {
+                Categoria.IPG => 1,
+                Categoria.COM => 2,
+                Categoria.PAC => 3,
+                Categoria.AJC => 4,
+                Categoria.SPP => 5,
+                Categoria.SUP => 6,
+                Categoria.ASP => 7,
+                Categoria.INP => 8,
+                Categoria.INS => 9,
+                Categoria.SUB => 10,
+                Categoria.SAP => 11,
+                Categoria.SAR => 12,
+                Categoria.PC => 13,
+                Categoria.SC => 14,
+                Categoria.GUA => 15,
+                _ => 999
+            };
+        }
+
+        private static IEnumerable<Funcionario>
+            OrdenarFuncionariosEmMemoria(
+                IEnumerable<Funcionario> funcionarios)
+        {
+            return funcionarios
+                .OrderBy(f =>
+                    ObterOrdemChefiaMemoria(f) < 999 ? 0 : 1)
+                .ThenBy(ObterOrdemChefiaMemoria)
+                .ThenBy(f => ObterOrdemCategoriaMemoria(f.Categoria))
+                .ThenBy(
+                    f => f.NomeCompleto,
+                    StringComparer.CurrentCultureIgnoreCase);
         }
 
         // ============================================================
@@ -146,17 +201,12 @@ namespace supai_mp.Controllers
         [HttpGet]
         public async Task<IActionResult> GetFuncionarios()
         {
-            var ordemChefia = OrdemChefiaExpression();
-            var ordemCategoria = OrdemCategoriaExpression();
-
-            var funcionarios = await _context.Funcionarios
+            var query = _context.Funcionarios
                 .Where(f =>
                     f.Estado == EstadoFuncionario.ACTIVO)
+                .AsQueryable();
 
-                .OrderBy(ordemChefia)
-                .ThenBy(ordemCategoria)
-                .ThenBy(f => f.NomeCompleto)
-
+            var funcionarios = await AplicarOrdenacaoGlobal(query)
                 .ToListAsync();
 
             return Ok(funcionarios);
@@ -179,7 +229,9 @@ namespace supai_mp.Controllers
                     "Não foi possível identificar o utilizador autenticado.");
             }
 
-            if (!int.TryParse(usuarioIdString, out int usuarioId))
+            if (!int.TryParse(
+                usuarioIdString,
+                out int usuarioId))
             {
                 return Unauthorized(
                     "Identificador do utilizador inválido.");
@@ -227,7 +279,9 @@ namespace supai_mp.Controllers
                 return Unauthorized();
             }
 
-            if (!int.TryParse(usuarioIdString, out int usuarioId))
+            if (!int.TryParse(
+                usuarioIdString,
+                out int usuarioId))
             {
                 return Unauthorized();
             }
@@ -238,7 +292,8 @@ namespace supai_mp.Controllers
 
             if (usuario == null)
             {
-                return NotFound("Utilizador não encontrado.");
+                return NotFound(
+                    "Utilizador não encontrado.");
             }
 
             if (usuario.Funcionario == null)
@@ -281,10 +336,7 @@ namespace supai_mp.Controllers
 
             termo = termo.Trim();
 
-            var ordemChefia = OrdemChefiaExpression();
-            var ordemCategoria = OrdemCategoriaExpression();
-
-            var funcionarios = await _context.Funcionarios
+            var query = _context.Funcionarios
                 .Where(f =>
                     f.Estado == EstadoFuncionario.ACTIVO &&
                     (
@@ -295,12 +347,11 @@ namespace supai_mp.Controllers
                         f.Contacto.Contains(termo) ||
                         f.LocalTrabalho.Contains(termo)
                     ))
+                .AsQueryable();
 
-                .OrderBy(ordemChefia)
-                .ThenBy(ordemCategoria)
-                .ThenBy(f => f.NomeCompleto)
-
-                .ToListAsync();
+            var funcionarios =
+                await AplicarOrdenacaoGlobal(query)
+                    .ToListAsync();
 
             return Ok(funcionarios);
         }
@@ -311,31 +362,37 @@ namespace supai_mp.Controllers
 
         [Authorize]
         [HttpPost("minha-fotografia")]
-        public async Task<IActionResult> AtualizarMinhaFotografia(
-            IFormFile fotografia)
+        public async Task<IActionResult>
+            AtualizarMinhaFotografia(
+                IFormFile fotografia)
         {
-            if (fotografia == null || fotografia.Length == 0)
+            if (fotografia == null ||
+                fotografia.Length == 0)
             {
                 return BadRequest(
                     "Selecione uma fotografia.");
             }
 
             var usuarioIdString =
-                User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                User.FindFirst(
+                    ClaimTypes.NameIdentifier)?.Value;
 
             if (string.IsNullOrEmpty(usuarioIdString))
             {
                 return Unauthorized();
             }
 
-            if (!int.TryParse(usuarioIdString, out int usuarioId))
+            if (!int.TryParse(
+                usuarioIdString,
+                out int usuarioId))
             {
                 return Unauthorized();
             }
 
             var usuario = await _context.Usuarios
                 .Include(u => u.Funcionario)
-                .FirstOrDefaultAsync(u => u.Id == usuarioId);
+                .FirstOrDefaultAsync(
+                    u => u.Id == usuarioId);
 
             if (usuario == null)
             {
@@ -349,12 +406,8 @@ namespace supai_mp.Controllers
                     "Este utilizador não está associado a um funcionário.");
             }
 
-            var extensoesPermitidas = new[]
-            {
-                ".jpg",
-                ".jpeg",
-                ".png"
-            };
+            var extensoesPermitidas =
+                new[] { ".jpg", ".jpeg", ".png" };
 
             var extensao = Path
                 .GetExtension(fotografia.FileName)
@@ -366,14 +419,16 @@ namespace supai_mp.Controllers
                     "Formato inválido. Use JPG, JPEG ou PNG.");
             }
 
-            if (fotografia.Length > 5 * 1024 * 1024)
+            if (fotografia.Length >
+                5 * 1024 * 1024)
             {
                 return BadRequest(
                     "A fotografia não pode ultrapassar 5 MB.");
             }
 
             var fotosPath =
-                Environment.GetEnvironmentVariable("FOTOS_PATH");
+                Environment.GetEnvironmentVariable(
+                    "FOTOS_PATH");
 
             if (string.IsNullOrWhiteSpace(fotosPath))
             {
@@ -416,9 +471,10 @@ namespace supai_mp.Controllers
                     fotosPath,
                     nomeArquivo);
 
-            using (var stream = new FileStream(
-                caminhoArquivo,
-                FileMode.Create))
+            using (var stream =
+                new FileStream(
+                    caminhoArquivo,
+                    FileMode.Create))
             {
                 await fotografia.CopyToAsync(stream);
             }
@@ -432,7 +488,6 @@ namespace supai_mp.Controllers
             {
                 mensagem =
                     "Fotografia atualizada com sucesso.",
-
                 fotografiaUrl =
                     usuario.Funcionario.FotografiaUrl
             });
@@ -448,7 +503,8 @@ namespace supai_mp.Controllers
             AlterarSenhaDto dto)
         {
             var usuarioIdString =
-                User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                User.FindFirst(
+                    ClaimTypes.NameIdentifier)?.Value;
 
             if (string.IsNullOrEmpty(usuarioIdString))
             {
@@ -462,8 +518,10 @@ namespace supai_mp.Controllers
                 return Unauthorized();
             }
 
-            var usuario = await _context.Usuarios
-                .FirstOrDefaultAsync(u => u.Id == usuarioId);
+            var usuario =
+                await _context.Usuarios
+                    .FirstOrDefaultAsync(
+                        u => u.Id == usuarioId);
 
             if (usuario == null)
             {
@@ -516,35 +574,40 @@ namespace supai_mp.Controllers
             var query =
                 _context.Funcionarios.AsQueryable();
 
-            if (!string.IsNullOrWhiteSpace(filtro.Nome))
+            if (!string.IsNullOrWhiteSpace(
+                filtro.Nome))
             {
                 query = query.Where(f =>
                     f.NomeCompleto.Contains(
                         filtro.Nome));
             }
 
-            if (!string.IsNullOrWhiteSpace(filtro.Nip))
+            if (!string.IsNullOrWhiteSpace(
+                filtro.Nip))
             {
                 query = query.Where(f =>
                     f.Nip.Contains(
                         filtro.Nip));
             }
 
-            if (!string.IsNullOrWhiteSpace(filtro.Bi))
+            if (!string.IsNullOrWhiteSpace(
+                filtro.Bi))
             {
                 query = query.Where(f =>
                     f.Bi.Contains(
                         filtro.Bi));
             }
 
-            if (!string.IsNullOrWhiteSpace(filtro.Nuit))
+            if (!string.IsNullOrWhiteSpace(
+                filtro.Nuit))
             {
                 query = query.Where(f =>
                     f.Nuit.Contains(
                         filtro.Nuit));
             }
 
-            if (!string.IsNullOrWhiteSpace(filtro.Contacto))
+            if (!string.IsNullOrWhiteSpace(
+                filtro.Contacto))
             {
                 query = query.Where(f =>
                     f.Contacto.Contains(
@@ -558,7 +621,8 @@ namespace supai_mp.Controllers
                     filtro.Categoria.Value);
             }
 
-            if (!string.IsNullOrWhiteSpace(filtro.Funcao))
+            if (!string.IsNullOrWhiteSpace(
+                filtro.Funcao))
             {
                 query = query.Where(f =>
                     f.Funcao.Contains(
@@ -580,35 +644,26 @@ namespace supai_mp.Controllers
                     filtro.EstadoFuncionario.Value);
             }
 
-            var ordemChefia =
-                OrdemChefiaExpression();
-
-            var ordemCategoria =
-                OrdemCategoriaExpression();
-
             var funcionarios =
-                await query
-
-                    .OrderBy(ordemChefia)
-                    .ThenBy(ordemCategoria)
-                    .ThenBy(f => f.NomeCompleto)
-
+                await AplicarOrdenacaoGlobal(query)
                     .ToListAsync();
 
             return Ok(funcionarios);
         }
 
         // ============================================================
-        // GET: api/Funcionarios/acessos/5
+        // GET: api/Funcionarios/acessos/{id}
         // ============================================================
 
         [Authorize(Roles = "Administrador")]
         [HttpGet("acessos/{id}")]
-        public async Task<IActionResult> GetAcesso(int id)
+        public async Task<IActionResult> GetAcesso(
+            int id)
         {
             var usuario = await _context.Usuarios
                 .Include(u => u.Funcionario)
-                .FirstOrDefaultAsync(u => u.Id == id);
+                .FirstOrDefaultAsync(
+                    u => u.Id == id);
 
             if (usuario == null)
             {
@@ -648,17 +703,20 @@ namespace supai_mp.Controllers
         }
 
         // ============================================================
-        // PUT: api/Funcionarios/acessos/5
+        // PUT: api/Funcionarios/acessos/{id}
         // ============================================================
 
         [Authorize(Roles = "Administrador")]
         [HttpPut("acessos/{id}")]
-        public async Task<IActionResult> AtualizarAcesso(
-            int id,
-            EditarAcessoDto dto)
+        public async Task<IActionResult>
+            AtualizarAcesso(
+                int id,
+                EditarAcessoDto dto)
         {
-            var usuario = await _context.Usuarios
-                .FirstOrDefaultAsync(u => u.Id == id);
+            var usuario =
+                await _context.Usuarios
+                    .FirstOrDefaultAsync(
+                        u => u.Id == id);
 
             if (usuario == null)
             {
@@ -680,8 +738,8 @@ namespace supai_mp.Controllers
             }
 
             var nomeExiste =
-                await _context.Usuarios
-                    .AnyAsync(u =>
+                await _context.Usuarios.AnyAsync(
+                    u =>
                         u.NomeUsuario ==
                         dto.NomeUsuario &&
                         u.Id != id);
@@ -724,15 +782,15 @@ namespace supai_mp.Controllers
 
         // ============================================================
         // GET: api/Funcionarios/paginado
-        // LISTAGEM PAGINADA + ESTATÍSTICAS
         // ============================================================
 
         [Authorize(Roles = "Administrador")]
         [HttpGet("paginado")]
-        public async Task<IActionResult> GetFuncionariosPaginado(
-            [FromQuery] int pagina = 1,
-            [FromQuery] int tamanhoPagina = 20,
-            [FromQuery] string? nome = null)
+        public async Task<IActionResult>
+            GetFuncionariosPaginado(
+                [FromQuery] int pagina = 1,
+                [FromQuery] int tamanhoPagina = 20,
+                [FromQuery] string? nome = null)
         {
             if (pagina < 1)
                 pagina = 1;
@@ -757,6 +815,10 @@ namespace supai_mp.Controllers
                     f.NomeCompleto.Contains(nome));
             }
 
+            // ========================================================
+            // TOTAIS
+            // ========================================================
+
             var totalRegistros =
                 await query.CountAsync();
 
@@ -770,7 +832,9 @@ namespace supai_mp.Controllers
 
             var totalAtivos =
                 await query.CountAsync(
-                    f => f.Estado == EstadoFuncionario.ACTIVO);
+                    f =>
+                        f.Estado ==
+                        EstadoFuncionario.ACTIVO);
 
             var totaisPorCategoria =
                 await query
@@ -798,72 +862,50 @@ namespace supai_mp.Controllers
                 pagina = 1;
             }
 
-            var ordemChefia =
-                OrdemChefiaExpression();
-
-            var ordemCategoria =
-                OrdemCategoriaExpression();
+            // ========================================================
+            // DADOS PAGINADOS
+            //
+            // A ORDENAÇÃO ACONTECE ANTES DO SKIP/TAKE.
+            // ========================================================
 
             var funcionarios =
-                await query
-
-                    .OrderBy(ordemChefia)
-                    .ThenBy(ordemCategoria)
-                    .ThenBy(f => f.NomeCompleto)
-
+                await AplicarOrdenacaoGlobal(query)
                     .Skip(
                         (pagina - 1) *
                         tamanhoPagina)
-
                     .Take(tamanhoPagina)
-
                     .Select(f => new
                     {
-                        // IDENTIFICAÇÃO
-
                         f.Id,
                         f.NomeCompleto,
                         f.Nip,
                         f.Bi,
                         f.Nuit,
 
-                        // DADOS PESSOAIS
-
                         Genero = (int)f.G,
 
                         f.estado_civil,
                         f.nivelAcademico,
                         f.grauParentesco,
-                        f.DataNascimento,
 
-                        // DADOS PROFISSIONAIS
+                        f.DataNascimento,
 
                         f.Categoria,
                         f.Funcao,
+
                         f.DataIngresso,
                         f.LocalTrabalho,
-
-                        // CONTACTOS
 
                         f.Contacto,
                         f.C_Alternativo,
                         f.C_Familiar,
 
-                        // LOCALIZAÇÃO
-
                         f.Bairro,
                         f.Quarterao_N,
                         f.Casa_N,
 
-                        // ESTADO
-
                         f.Estado,
-
-                        // FOTOGRAFIA
-
                         f.FotografiaUrl,
-
-                        // ORGANIZAÇÃO
 
                         SeccaoId =
                             f.SeccaoId,
@@ -873,16 +915,17 @@ namespace supai_mp.Controllers
                                 ? f.Seccao.Nome
                                 : "Sem secção",
 
-                        // ACESSO
-
                         TemUsuario =
-                            _context.Usuarios
-                                .Any(u =>
+                            _context.Usuarios.Any(
+                                u =>
                                     u.FuncionarioId ==
                                     f.Id)
                     })
-
                     .ToListAsync();
+
+            // ========================================================
+            // CONVERTER CATEGORIAS PARA OS CÓDIGOS UTILIZADOS PELO MVC
+            // ========================================================
 
             var categorias =
                 totaisPorCategoria
@@ -907,14 +950,12 @@ namespace supai_mp.Controllers
 
                             _ => x.Categoria.ToString()
                         },
-                        x => x.Total
-                    );
+                        x => x.Total);
 
             return Ok(new
             {
                 pagina,
                 tamanhoPagina,
-
                 nome,
 
                 totalRegistros,
@@ -938,12 +979,13 @@ namespace supai_mp.Controllers
 
         [Authorize(Roles = "Administrador")]
         [HttpPost]
-        public async Task<IActionResult> CriarFuncionario(
-            FuncionarioCreateDto dto)
+        public async Task<IActionResult>
+            CriarFuncionario(
+                FuncionarioCreateDto dto)
         {
             var usuarioExiste =
-                await _context.Usuarios
-                    .AnyAsync(u =>
+                await _context.Usuarios.AnyAsync(
+                    u =>
                         u.NomeUsuario ==
                         dto.NomeUsuario);
 
@@ -956,103 +998,106 @@ namespace supai_mp.Controllers
                 });
             }
 
-            var funcionario = new Funcionario
-            {
-                NomeCompleto =
-                    dto.NomeCompleto,
+            var funcionario =
+                new Funcionario
+                {
+                    NomeCompleto =
+                        dto.NomeCompleto,
 
-                Nip =
-                    dto.Nip,
+                    Nip =
+                        dto.Nip,
 
-                Bi =
-                    dto.Bi,
+                    Bi =
+                        dto.Bi,
 
-                Nuit =
-                    dto.Nuit,
+                    Nuit =
+                        dto.Nuit,
 
-                G =
-                    dto.Genero,
+                    G =
+                        dto.Genero,
 
-                estado_civil =
-                    dto.EstadoCivil,
+                    estado_civil =
+                        dto.EstadoCivil,
 
-                nivelAcademico =
-                    dto.NivelAcademico,
+                    nivelAcademico =
+                        dto.NivelAcademico,
 
-                grauParentesco =
-                    dto.GrauParentesco,
+                    grauParentesco =
+                        dto.GrauParentesco,
 
-                Categoria =
-                    dto.Categoria,
+                    Categoria =
+                        dto.Categoria,
 
-                Funcao =
-                    dto.Funcao,
+                    Funcao =
+                        dto.Funcao,
 
-                Contacto =
-                    dto.Contacto,
+                    Contacto =
+                        dto.Contacto,
 
-                C_Alternativo =
-                    dto.C_Alternativo,
+                    C_Alternativo =
+                        dto.C_Alternativo,
 
-                C_Familiar =
-                    dto.C_Familiar,
+                    C_Familiar =
+                        dto.C_Familiar,
 
-                DataNascimento =
-                    dto.DataNascimento,
+                    DataNascimento =
+                        dto.DataNascimento,
 
-                DataIngresso =
-                    dto.DataIngresso,
+                    DataIngresso =
+                        dto.DataIngresso,
 
-                LocalTrabalho =
-                    dto.LocalTrabalho,
+                    LocalTrabalho =
+                        dto.LocalTrabalho,
 
-                Bairro =
-                    dto.Bairro,
+                    Bairro =
+                        dto.Bairro,
 
-                Quarterao_N =
-                    dto.Quarterao_N,
+                    Quarterao_N =
+                        dto.Quarterao_N,
 
-                Casa_N =
-                    dto.Casa_N,
+                    Casa_N =
+                        dto.Casa_N,
 
-                Estado =
-                    dto.EstadoFuncionario,
+                    Estado =
+                        dto.EstadoFuncionario,
 
-                FotografiaUrl =
-                    dto.FotografiaUrl,
+                    FotografiaUrl =
+                        dto.FotografiaUrl,
 
-                DataCadastro =
-                    DateTime.Now
-            };
+                    DataCadastro =
+                        DateTime.Now
+                };
 
             _context.Funcionarios.Add(
                 funcionario);
 
             await _context.SaveChangesAsync();
 
-            var usuario = new Usuario
-            {
-                NomeUsuario =
-                    dto.NomeUsuario,
+            var usuario =
+                new Usuario
+                {
+                    NomeUsuario =
+                        dto.NomeUsuario,
 
-                SenhaHash =
-                    BCrypt.Net.BCrypt.HashPassword(
-                        dto.Senha),
+                    SenhaHash =
+                        BCrypt.Net.BCrypt.HashPassword(
+                            dto.Senha),
 
-                Perfil =
-                    "Funcionario",
+                    Perfil =
+                        "Funcionario",
 
-                FuncionarioId =
-                    funcionario.Id,
+                    FuncionarioId =
+                        funcionario.Id,
 
-                Ativo =
-                    true,
+                    Ativo =
+                        true,
 
-                DataCadastro =
-                    DateTime.Now
-            };
+                    DataCadastro =
+                        DateTime.Now
+                };
 
-            _context.Usuarios.Add(usuario);
+            _context.Usuarios.Add(
+                usuario);
 
             await _context.SaveChangesAsync();
 
@@ -1060,8 +1105,7 @@ namespace supai_mp.Controllers
                 nameof(GetFuncionario),
                 new
                 {
-                    id =
-                        funcionario.Id
+                    id = funcionario.Id
                 },
                 new
                 {
@@ -1077,13 +1121,13 @@ namespace supai_mp.Controllers
         }
 
         // ============================================================
-        // GET: api/Funcionarios/5
+        // GET: api/Funcionarios/{id}
         // ============================================================
 
         [Authorize(Roles = "Administrador")]
         [HttpGet("{id}")]
-        public async Task<IActionResult> GetFuncionario(
-            int id)
+        public async Task<IActionResult>
+            GetFuncionario(int id)
         {
             var funcionario =
                 await _context.Funcionarios
@@ -1098,14 +1142,15 @@ namespace supai_mp.Controllers
         }
 
         // ============================================================
-        // PUT: api/Funcionarios/5
+        // PUT: api/Funcionarios/{id}
         // ============================================================
 
         [Authorize(Roles = "Administrador")]
         [HttpPut("{id}")]
-        public async Task<IActionResult> AtualizarFuncionario(
-            int id,
-            FuncionarioUpdateDto dto)
+        public async Task<IActionResult>
+            AtualizarFuncionario(
+                int id,
+                FuncionarioUpdateDto dto)
         {
             var funcionario =
                 await _context.Funcionarios
@@ -1177,9 +1222,6 @@ namespace supai_mp.Controllers
             funcionario.Estado =
                 dto.EstadoFuncionario;
 
-            // NÃO alterar FotografiaUrl.
-            // A fotografia possui processo próprio.
-
             await _context.SaveChangesAsync();
 
             return Ok(new
@@ -1192,14 +1234,15 @@ namespace supai_mp.Controllers
         }
 
         // ============================================================
-        // POST: api/Funcionarios/5/criar-acesso
+        // POST: api/Funcionarios/{id}/criar-acesso
         // ============================================================
 
         [Authorize(Roles = "Administrador")]
         [HttpPost("{id}/criar-acesso")]
-        public async Task<IActionResult> CriarAcesso(
-            int id,
-            CriarAcessoFuncionarioDto dto)
+        public async Task<IActionResult>
+            CriarAcesso(
+                int id,
+                CriarAcessoFuncionarioDto dto)
         {
             var funcionario =
                 await _context.Funcionarios
@@ -1216,8 +1259,10 @@ namespace supai_mp.Controllers
 
             var funcionarioTemUsuario =
                 await _context.Usuarios
-                    .AnyAsync(u =>
-                        u.FuncionarioId == id);
+                    .AnyAsync(
+                        u =>
+                            u.FuncionarioId ==
+                            id);
 
             if (funcionarioTemUsuario)
             {
@@ -1230,9 +1275,10 @@ namespace supai_mp.Controllers
 
             var nomeUsuarioExiste =
                 await _context.Usuarios
-                    .AnyAsync(u =>
-                        u.NomeUsuario ==
-                        dto.NomeUsuario);
+                    .AnyAsync(
+                        u =>
+                            u.NomeUsuario ==
+                            dto.NomeUsuario);
 
             if (nomeUsuarioExiste)
             {
@@ -1243,29 +1289,31 @@ namespace supai_mp.Controllers
                 });
             }
 
-            var usuario = new Usuario
-            {
-                NomeUsuario =
-                    dto.NomeUsuario,
+            var usuario =
+                new Usuario
+                {
+                    NomeUsuario =
+                        dto.NomeUsuario,
 
-                SenhaHash =
-                    BCrypt.Net.BCrypt.HashPassword(
-                        dto.Senha),
+                    SenhaHash =
+                        BCrypt.Net.BCrypt.HashPassword(
+                            dto.Senha),
 
-                Perfil =
-                    "Funcionario",
+                    Perfil =
+                        "Funcionario",
 
-                FuncionarioId =
-                    funcionario.Id,
+                    FuncionarioId =
+                        funcionario.Id,
 
-                Ativo =
-                    true,
+                    Ativo =
+                        true,
 
-                DataCadastro =
-                    DateTime.Now
-            };
+                    DataCadastro =
+                        DateTime.Now
+                };
 
-            _context.Usuarios.Add(usuario);
+            _context.Usuarios.Add(
+                usuario);
 
             await _context.SaveChangesAsync();
 
@@ -1288,41 +1336,56 @@ namespace supai_mp.Controllers
 
         [Authorize(Roles = "Administrador")]
         [HttpGet("acessos")]
-        public async Task<IActionResult> ListarAcessos()
+        public async Task<IActionResult>
+            ListarAcessos()
         {
-            var ordemChefia =
-                OrdemChefiaExpression();
+            /*
+             * Aqui carregamos primeiro os funcionários associados
+             * aos usuários e depois aplicamos a mesma regra global.
+             *
+             * Isso garante que a lista de acessos também respeite
+             * a hierarquia dos chefes.
+             */
 
-            var ordemCategoria =
-                OrdemCategoriaExpression();
-
-            var acessos =
+            var usuarios =
                 await _context.Usuarios
                     .Include(u => u.Funcionario)
+                    .ToListAsync();
 
+            var acessos =
+                usuarios
                     .OrderBy(u =>
-                        u.Funcionario != null
-                            ? ordemChefia.Compile()(
-                                u.Funcionario)
-                            : 9999)
-
+                        u.Funcionario != null &&
+                        ObterOrdemChefiaMemoria(
+                            u.Funcionario) < 999
+                            ? 0
+                            : 1)
                     .ThenBy(u =>
                         u.Funcionario != null
-                            ? ordemCategoria.Compile()(
+                            ? ObterOrdemChefiaMemoria(
                                 u.Funcionario)
-                            : 9999)
-
+                            : 999)
                     .ThenBy(u =>
                         u.Funcionario != null
-                            ? u.Funcionario.NomeCompleto
-                            : u.NomeUsuario)
-
+                            ? ObterOrdemCategoriaMemoria(
+                                u.Funcionario.Categoria)
+                            : 999)
+                    .ThenBy(
+                        u =>
+                            u.Funcionario != null
+                                ? u.Funcionario.NomeCompleto
+                                : string.Empty,
+                        StringComparer.CurrentCultureIgnoreCase)
                     .Select(u => new
                     {
                         u.Id,
+
                         u.NomeUsuario,
+
                         u.Perfil,
+
                         u.Ativo,
+
                         u.DataCadastro,
 
                         FuncionarioId =
@@ -1341,23 +1404,38 @@ namespace supai_mp.Controllers
                         FotografiaUrl =
                             u.Funcionario != null
                                 ? u.Funcionario.FotografiaUrl
+                                : null,
+
+                        Categoria =
+                            u.Funcionario != null
+                                ? u.Funcionario.Categoria
+                                : (Categoria?)null,
+
+                        Funcao =
+                            u.Funcionario != null
+                                ? u.Funcionario.Funcao
+                                : null,
+
+                        SeccaoId =
+                            u.Funcionario != null
+                                ? u.Funcionario.SeccaoId
                                 : null
                     })
-
-                    .ToListAsync();
+                    .ToList();
 
             return Ok(acessos);
         }
 
         // ============================================================
-        // PUT: api/Funcionarios/5/seccao
+        // PUT: api/Funcionarios/{id}/seccao
         // ============================================================
 
         [Authorize(Roles = "Administrador")]
         [HttpPut("{id}/seccao")]
-        public async Task<IActionResult> AtribuirSeccao(
-            int id,
-            [FromBody] int seccaoId)
+        public async Task<IActionResult>
+            AtribuirSeccao(
+                int id,
+                [FromBody] int seccaoId)
         {
             var funcionario =
                 await _context.Funcionarios
@@ -1375,9 +1453,10 @@ namespace supai_mp.Controllers
 
             var seccao =
                 await _context.Seccoes
-                    .FirstOrDefaultAsync(s =>
-                        s.Id == seccaoId &&
-                        s.Ativo);
+                    .FirstOrDefaultAsync(
+                        s =>
+                            s.Id == seccaoId &&
+                            s.Ativo);
 
             if (seccao == null)
             {
@@ -1418,25 +1497,18 @@ namespace supai_mp.Controllers
 
         [HttpGet("sem-seccao")]
         [Authorize(Roles = "Administrador")]
-        public async Task<IActionResult> GetFuncionariosSemSeccao()
+        public async Task<IActionResult>
+            GetFuncionariosSemSeccao()
         {
-            var ordemChefia =
-                OrdemChefiaExpression();
-
-            var ordemCategoria =
-                OrdemCategoriaExpression();
-
-            var funcionarios =
-                await _context.Funcionarios
+            var query =
+                _context.Funcionarios
                     .AsNoTracking()
-
                     .Where(f =>
                         f.SeccaoId == null)
+                    .AsQueryable();
 
-                    .OrderBy(ordemChefia)
-                    .ThenBy(ordemCategoria)
-                    .ThenBy(f => f.NomeCompleto)
-
+            var funcionarios =
+                await AplicarOrdenacaoGlobal(query)
                     .Select(f => new
                     {
                         f.Id,
@@ -1450,14 +1522,15 @@ namespace supai_mp.Controllers
                         f.LocalTrabalho,
                         f.Estado,
                         f.FotografiaUrl,
+
                         TemUsuario =
-                            _context.Usuarios
-                                .Any(u =>
+                            _context.Usuarios.Any(
+                                u =>
                                     u.FuncionarioId ==
                                     f.Id),
+
                         f.SeccaoId
                     })
-
                     .ToListAsync();
 
             return Ok(funcionarios);
@@ -1469,8 +1542,9 @@ namespace supai_mp.Controllers
 
         [HttpGet("com-seccao")]
         [Authorize(Roles = "Administrador")]
-        public async Task<IActionResult> GetFuncionariosComSeccao(
-            int? seccaoId = null)
+        public async Task<IActionResult>
+            GetFuncionariosComSeccao(
+                int? seccaoId = null)
         {
             var consulta =
                 _context.Funcionarios
@@ -1484,24 +1558,15 @@ namespace supai_mp.Controllers
                 seccaoId.Value > 0)
             {
                 consulta =
-                    consulta.Where(f =>
-                        f.SeccaoId ==
-                        seccaoId.Value);
+                    consulta.Where(
+                        f =>
+                            f.SeccaoId ==
+                            seccaoId.Value);
             }
 
-            var ordemChefia =
-                OrdemChefiaExpression();
-
-            var ordemCategoria =
-                OrdemCategoriaExpression();
-
             var funcionarios =
-                await consulta
-
-                    .OrderBy(ordemChefia)
-                    .ThenBy(ordemCategoria)
-                    .ThenBy(f => f.NomeCompleto)
-
+                await AplicarOrdenacaoGlobal(
+                        consulta)
                     .Select(f => new
                     {
                         f.Id,
@@ -1524,20 +1589,19 @@ namespace supai_mp.Controllers
                                 ? f.Seccao.Nome
                                 : null
                     })
-
                     .ToListAsync();
 
             return Ok(funcionarios);
         }
 
         // ============================================================
-        // DELETE: api/Funcionarios/5
+        // DELETE: api/Funcionarios/{id}
         // ============================================================
 
         [Authorize(Roles = "Administrador")]
         [HttpDelete("{id}")]
-        public async Task<IActionResult> InativarFuncionario(
-            int id)
+        public async Task<IActionResult>
+            InativarFuncionario(int id)
         {
             var funcionario =
                 await _context.Funcionarios
