@@ -41,4 +41,22 @@
 
         public List<DependenciaFuncionarioDto> Dependencias { get; set; } = new();
     }
+
+    public class UsuarioFuncionarioDuplicadoDto
+    {
+        public int UsuarioId { get; set; }
+        public string? NomeUsuario { get; set; }
+        public string? Perfil { get; set; }
+    }
+
+    public class FuncionarioDuplicadoUsuarioDto
+    {
+        public int Id { get; set; }
+        public string NomeCompleto { get; set; } = string.Empty;
+        public string Nip { get; set; } = string.Empty;
+        public int? SeccaoId { get; set; }
+        public string? SeccaoNome { get; set; }
+
+        public List<UsuarioFuncionarioDuplicadoDto> Usuarios { get; set; } = new();
+    }
 }

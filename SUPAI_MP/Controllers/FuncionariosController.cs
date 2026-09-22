@@ -1756,6 +1756,182 @@ namespace supai_mp.Controllers
             return Ok(resultado);
         }
 
+        [HttpGet("duplicados/usuarios")]
+        [Authorize(Roles = "Administrador")]
+        public async Task<IActionResult> ObterDuplicadosComUsuarios()
+        {
+            var funcionarios = await _context.Funcionarios
+                .Include(f => f.Seccao)
+                .AsNoTracking()
+                .ToListAsync();
+
+            var idsDuplicados = funcionarios
+                .Where(f => !string.IsNullOrWhiteSpace(f.NomeCompleto))
+                .GroupBy(f => f.NomeCompleto.Trim().ToUpper())
+                .Where(g => g.Count() > 1)
+                .SelectMany(g => g.Select(f => f.Id))
+                .ToList();
+
+            if (!idsDuplicados.Any())
+                return Ok(new List<FuncionarioDuplicadoUsuarioDto>());
+
+            var resultado = new List<FuncionarioDuplicadoUsuarioDto>();
+
+            foreach (var funcionario in funcionarios
+                .Where(f => idsDuplicados.Contains(f.Id))
+                .OrderBy(f => f.NomeCompleto)
+                .ThenBy(f => f.Id))
+            {
+                var item = new FuncionarioDuplicadoUsuarioDto
+                {
+                    Id = funcionario.Id,
+                    NomeCompleto = funcionario.NomeCompleto,
+                    Nip = funcionario.Nip,
+                    SeccaoId = funcionario.SeccaoId,
+                    SeccaoNome = funcionario.Seccao?.Nome ?? "Sem secção"
+                };
+
+                /*
+                 * Procuramos automaticamente a entidade Usuario
+                 * através do relacionamento definido no Entity Framework.
+                 */
+                var entidadeUsuario = _context.Model
+                    .GetEntityTypes()
+                    .FirstOrDefault(e =>
+                        e.ClrType.Name.Equals(
+                            "Usuario",
+                            StringComparison.OrdinalIgnoreCase));
+
+                if (entidadeUsuario != null)
+                {
+                    var foreignKey = entidadeUsuario
+                        .GetForeignKeys()
+                        .FirstOrDefault(fk =>
+                            fk.PrincipalEntityType.ClrType ==
+                            typeof(Funcionario));
+
+                    if (foreignKey != null &&
+                        foreignKey.Properties.Count == 1)
+                    {
+                        var propriedadeFuncionario =
+                            foreignKey.Properties[0];
+
+                        var tabela = entidadeUsuario.GetTableName();
+
+                        if (!string.IsNullOrWhiteSpace(tabela))
+                        {
+                            var colunaFuncionario =
+                                propriedadeFuncionario.GetColumnName(
+                                    StoreObjectIdentifier.Table(
+                                        tabela,
+                                        entidadeUsuario.GetSchema()));
+
+                            if (!string.IsNullOrWhiteSpace(colunaFuncionario))
+                            {
+                                var sql = $@"
+                            SELECT *
+                            FROM `{tabela}`
+                            WHERE `{colunaFuncionario}` = @funcionarioId";
+
+                                await using var command =
+                                    _context.Database
+                                        .GetDbConnection()
+                                        .CreateCommand();
+
+                                command.CommandText = sql;
+
+                                var parameter =
+                                    command.CreateParameter();
+
+                                parameter.ParameterName =
+                                    "@funcionarioId";
+
+                                parameter.Value =
+                                    funcionario.Id;
+
+                                command.Parameters.Add(parameter);
+
+                                if (command.Connection!.State !=
+                                    System.Data.ConnectionState.Open)
+                                {
+                                    await command.Connection.OpenAsync();
+                                }
+
+                                await using var reader =
+                                    await command.ExecuteReaderAsync();
+
+                                while (await reader.ReadAsync())
+                                {
+                                    int usuarioId = 0;
+                                    string? nomeUsuario = null;
+                                    string? perfil = null;
+
+                                    for (int i = 0;
+                                         i < reader.FieldCount;
+                                         i++)
+                                    {
+                                        var nomeColuna =
+                                            reader.GetName(i);
+
+                                        if (nomeColuna.Equals(
+                                            "Id",
+                                            StringComparison.OrdinalIgnoreCase))
+                                        {
+                                            if (!reader.IsDBNull(i))
+                                                usuarioId =
+                                                    Convert.ToInt32(
+                                                        reader.GetValue(i));
+                                        }
+
+                                        if (nomeColuna.Equals(
+                                            "Username",
+                                            StringComparison.OrdinalIgnoreCase) ||
+                                            nomeColuna.Equals(
+                                            "NomeUsuario",
+                                            StringComparison.OrdinalIgnoreCase) ||
+                                            nomeColuna.Equals(
+                                            "Nome",
+                                            StringComparison.OrdinalIgnoreCase))
+                                        {
+                                            if (!reader.IsDBNull(i))
+                                                nomeUsuario =
+                                                    reader.GetValue(i)
+                                                        .ToString();
+                                        }
+
+                                        if (nomeColuna.Equals(
+                                            "Perfil",
+                                            StringComparison.OrdinalIgnoreCase) ||
+                                            nomeColuna.Equals(
+                                            "Role",
+                                            StringComparison.OrdinalIgnoreCase))
+                                        {
+                                            if (!reader.IsDBNull(i))
+                                                perfil =
+                                                    reader.GetValue(i)
+                                                        .ToString();
+                                        }
+                                    }
+
+                                    item.Usuarios.Add(
+                                        new UsuarioFuncionarioDuplicadoDto
+                                        {
+                                            UsuarioId = usuarioId,
+                                            NomeUsuario = nomeUsuario,
+                                            Perfil = perfil
+                                        });
+                                }
+                            }
+                        }
+                    }
+                }
+
+                resultado.Add(item);
+            }
+
+            return Ok(resultado);
+        }
+
         // ============================================================
         // DELETE: api/Funcionarios/{id}
         // ============================================================
