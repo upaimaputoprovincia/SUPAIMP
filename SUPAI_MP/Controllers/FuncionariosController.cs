@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using supai_mp.Data;
+using supai_mp.DTOs;
 using supai_mp.Models;
 using supai_mp.Models.DTOs;
 using SUPAI_MP.Data.DTOs;
@@ -1592,6 +1593,47 @@ namespace supai_mp.Controllers
                     .ToListAsync();
 
             return Ok(funcionarios);
+        }
+
+        [HttpGet("duplicados")]
+        [Authorize(Roles = "Administrador")]
+        public async Task<IActionResult> ObterDuplicados()
+        {
+            var funcionarios = await _context.Funcionarios
+                .Include(f => f.Seccao)
+                .AsNoTracking()
+                .ToListAsync();
+
+            var duplicados = funcionarios
+                .Where(f => !string.IsNullOrWhiteSpace(f.NomeCompleto))
+                .GroupBy(f => f.NomeCompleto.Trim().ToUpper())
+                .Where(g => g.Count() > 1)
+                .OrderBy(g => g.Key)
+                .Select(g => new GrupoFuncionarioDuplicadoDto
+                {
+                    Nome = g.First().NomeCompleto.Trim(),
+                    Quantidade = g.Count(),
+
+                    Funcionarios = g
+                        .OrderBy(f => f.Id)
+                        .Select(f => new FuncionarioDuplicadoItemDto
+                        {
+                            Id = f.Id,
+                            NomeCompleto = f.NomeCompleto,
+                            Nip = f.Nip,
+                            Categoria = (int)f.Categoria,
+                            Funcao = f.Funcao,
+                            SeccaoId = f.SeccaoId,
+                            SeccaoNome = f.Seccao != null
+                                ? f.Seccao.Nome
+                                : "Sem secção",
+                            Estado = (int)f.Estado
+                        })
+                        .ToList()
+                })
+                .ToList();
+
+            return Ok(duplicados);
         }
 
         // ============================================================
