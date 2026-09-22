@@ -2343,7 +2343,7 @@ namespace supai_mp.Controllers
         [HttpPost("duplicados/consolidar")]
         [Authorize(Roles = "Administrador")]
         public async Task<IActionResult> ConsolidarDuplicado(
-    [FromBody] ConsolidarFuncionariosDuplicadosDto dto)
+     [FromBody] ConsolidarFuncionariosDuplicadosDto dto)
         {
             if (dto == null)
             {
@@ -2357,8 +2357,7 @@ namespace supai_mp.Controllers
             {
                 return BadRequest(new
                 {
-                    mensagem =
-                        "Os IDs dos funcionários devem ser maiores que zero."
+                    mensagem = "Os IDs dos funcionários devem ser maiores que zero."
                 });
             }
 
@@ -2379,6 +2378,9 @@ namespace supai_mp.Controllers
             var funcionarioManter = await _context.Funcionarios
                 .FirstOrDefaultAsync(f => f.Id == dto.IdManter);
 
+            var funcionarioEliminar = await _context.Funcionarios
+                .FirstOrDefaultAsync(f => f.Id == dto.IdEliminar);
+
             if (funcionarioManter == null)
             {
                 return NotFound(new
@@ -2387,9 +2389,6 @@ namespace supai_mp.Controllers
                         $"O funcionário com ID {dto.IdManter} não foi encontrado."
                 });
             }
-
-            var funcionarioEliminar = await _context.Funcionarios
-                .FirstOrDefaultAsync(f => f.Id == dto.IdEliminar);
 
             if (funcionarioEliminar == null)
             {
@@ -2401,7 +2400,7 @@ namespace supai_mp.Controllers
             }
 
             // ============================================================
-            // 2. VALIDAR NOMES
+            // 2. NORMALIZAR NOME
             // ============================================================
 
             var nomeManter =
@@ -2421,9 +2420,9 @@ namespace supai_mp.Controllers
             }
 
             if (!string.Equals(
-                    nomeManter,
-                    nomeEliminar,
-                    StringComparison.OrdinalIgnoreCase))
+                nomeManter,
+                nomeEliminar,
+                StringComparison.OrdinalIgnoreCase))
             {
                 return BadRequest(new
                 {
@@ -2434,25 +2433,45 @@ namespace supai_mp.Controllers
             }
 
             // ============================================================
-            // 3. CASOS QUE EXIGEM DECISÃO MANUAL
+            // 3. VALIDAR NIP
             // ============================================================
 
-            var casosManuais = new HashSet<string>(
-                StringComparer.OrdinalIgnoreCase)
-    {
-        "ERASMO MAURICIO BAIECO",
-        "JORGE DJEI SALVADOR PANGUANE",
-        "LUISA CASTRO PERENGUE"
-    };
+            var nipManter =
+                funcionarioManter.Nip?.Trim();
 
-            if (casosManuais.Contains(nomeManter))
+            var nipEliminar =
+                funcionarioEliminar.Nip?.Trim();
+
+            if (!string.IsNullOrWhiteSpace(nipManter) &&
+                !string.IsNullOrWhiteSpace(nipEliminar))
             {
-                return Conflict(new
+                if (!string.Equals(
+                    nipManter,
+                    nipEliminar,
+                    StringComparison.OrdinalIgnoreCase))
                 {
-                    mensagem =
-                        $"A consolidação de '{nomeManter}' está bloqueada. " +
-                        "Este caso exige decisão manual."
-                });
+                    return Conflict(new
+                    {
+                        mensagem =
+                            "Os funcionários possuem NIP diferentes. " +
+                            "A consolidação foi bloqueada para evitar " +
+                            "a fusão de pessoas diferentes.",
+
+                        funcionarioManter = new
+                        {
+                            funcionarioManter.Id,
+                            funcionarioManter.NomeCompleto,
+                            funcionarioManter.Nip
+                        },
+
+                        funcionarioEliminar = new
+                        {
+                            funcionarioEliminar.Id,
+                            funcionarioEliminar.NomeCompleto,
+                            funcionarioEliminar.Nip
+                        }
+                    });
+                }
             }
 
             // ============================================================
@@ -2475,45 +2494,81 @@ namespace supai_mp.Controllers
                 return Conflict(new
                 {
                     mensagem =
-                        $"O nome '{nomeManter}' não possui exatamente " +
-                        "dois registros neste momento. " +
-                        "A consolidação foi bloqueada para evitar eliminação indevida."
+                        $"O nome '{nomeManter}' possui " +
+                        $"{funcionariosMesmoNome.Count} registros. " +
+                        "A consolidação automática exige exatamente dois " +
+                        "registros para evitar eliminação indevida."
                 });
             }
 
             // ============================================================
-            // 5. DESCOBRIR TODAS AS ENTIDADES QUE POSSUEM
-            //    FK PARA FUNCIONARIO
+            // 5. VERIFICAR DIFERENÇAS RELEVANTES
+            //
+            // Se categoria, função ou secção forem diferentes,
+            // exigimos decisão manual.
+            // ============================================================
+
+            var mesmaCategoria =
+                funcionarioManter.Categoria ==
+                funcionarioEliminar.Categoria;
+
+            var mesmaFuncao =
+                string.Equals(
+                    funcionarioManter.Funcao?.Trim(),
+                    funcionarioEliminar.Funcao?.Trim(),
+                    StringComparison.OrdinalIgnoreCase);
+
+            var mesmaSeccao =
+                funcionarioManter.SeccaoId ==
+                funcionarioEliminar.SeccaoId;
+
+            if (!mesmaCategoria ||
+                !mesmaFuncao ||
+                !mesmaSeccao)
+            {
+                return Conflict(new
+                {
+                    mensagem =
+                        "Os registros possuem diferenças relevantes " +
+                        "de categoria, função ou secção. " +
+                        "A consolidação automática foi bloqueada " +
+                        "e requer decisão manual.",
+
+                    idManter = funcionarioManter.Id,
+                    idEliminar = funcionarioEliminar.Id,
+
+                    manter = new
+                    {
+                        categoria = funcionarioManter.Categoria.ToString(),
+                        funcao = funcionarioManter.Funcao,
+                        seccaoId = funcionarioManter.SeccaoId
+                    },
+
+                    eliminar = new
+                    {
+                        categoria = funcionarioEliminar.Categoria.ToString(),
+                        funcao = funcionarioEliminar.Funcao,
+                        seccaoId = funcionarioEliminar.SeccaoId
+                    }
+                });
+            }
+
+            // ============================================================
+            // 6. DESCOBRIR TODAS AS ENTIDADES QUE POSSUEM FK
+            //    PARA FUNCIONARIO
             // ============================================================
 
             var entidadesDependentes = _context.Model
                 .GetEntityTypes()
                 .Where(e =>
                     e.GetForeignKeys()
-                     .Any(fk =>
-                         fk.PrincipalEntityType.ClrType ==
-                         typeof(Funcionario)))
+                        .Any(fk =>
+                            fk.PrincipalEntityType.ClrType ==
+                            typeof(Funcionario)))
                 .ToList();
 
             // ============================================================
-            // 6. CONTAR AS DEPENDÊNCIAS DE CADA FUNCIONÁRIO
-            //
-            // IMPORTANTE:
-            // Aqui contamos a quantidade REAL de registros relacionados.
-            //
-            // Exemplo SENIGIO:
-            //
-            // ID 286:
-            // Escala = 2
-            // LotacaoFuncionario = 1
-            // Usuario = 1
-            // TOTAL = 4
-            //
-            // ID 287:
-            // Usuario = 1
-            // TOTAL = 1
-            //
-            // Portanto 286 deve ser preservado.
+            // 7. CONTAR DEPENDÊNCIAS
             // ============================================================
 
             var dependenciasPorFuncionario =
@@ -2582,14 +2637,12 @@ namespace supai_mp.Controllers
                         parameter.Value =
                             funcionario.Id;
 
-                        command.Parameters.Add(
-                            parameter);
+                        command.Parameters.Add(parameter);
 
                         if (command.Connection!.State !=
                             System.Data.ConnectionState.Open)
                         {
-                            await command.Connection
-                                .OpenAsync();
+                            await command.Connection.OpenAsync();
                         }
 
                         var valor =
@@ -2613,29 +2666,26 @@ namespace supai_mp.Controllers
                                     quantidade
                                 });
 
-                            totalDependencias +=
-                                quantidade;
+                            totalDependencias += quantidade;
                         }
                     }
                 }
 
-                dependenciasPorFuncionario[
-                    funcionario.Id] =
+                dependenciasPorFuncionario[funcionario.Id] =
                     dependenciasFuncionario;
 
-                totalDependenciasPorFuncionario[
-                    funcionario.Id] =
+                totalDependenciasPorFuncionario[funcionario.Id] =
                     totalDependencias;
             }
 
             // ============================================================
-            // 7. ESCOLHER AUTOMATICAMENTE O REGISTRO A MANTER
+            // 8. ESCOLHER CANDIDATO A MANTER
             //
             // PRIORIDADE:
             //
-            // 1º Maior número de dependências
-            // 2º Funcionário que possui secção
-            // 3º Menor ID
+            // 1. Maior número de dependências
+            // 2. Possui secção
+            // 3. Menor ID
             // ============================================================
 
             var candidatoManter =
@@ -2648,7 +2698,7 @@ namespace supai_mp.Controllers
                     .First();
 
             // ============================================================
-            // 8. CONFIRMAR QUE O ID ENVIADO PARA MANTER É O CORRETO
+            // 9. VALIDAR ID INFORMADO PELO ADMINISTRADOR
             // ============================================================
 
             if (dto.IdManter != candidatoManter.Id)
@@ -2675,7 +2725,7 @@ namespace supai_mp.Controllers
             }
 
             // ============================================================
-            // 9. O OUTRO REGISTRO SERÁ O CANDIDATO A ELIMINAR
+            // 10. DEFINIR CANDIDATO A ELIMINAR
             // ============================================================
 
             var candidatoEliminar =
@@ -2700,11 +2750,7 @@ namespace supai_mp.Controllers
             }
 
             // ============================================================
-            // 10. VERIFICAR DEPENDÊNCIAS DO FUNCIONÁRIO A ELIMINAR
-            //
-            // Só Usuario pode ser eliminado automaticamente.
-            //
-            // Escala, LotacaoFuncionario, etc. BLOQUEIAM a operação.
+            // 11. DEPENDÊNCIAS DO REGISTRO A ELIMINAR
             // ============================================================
 
             var dependenciasEliminar =
@@ -2720,7 +2766,8 @@ namespace supai_mp.Controllers
                                 .GetProperty("entidade");
 
                         var valor =
-                            propriedade?.GetValue(d)?
+                            propriedade?
+                                .GetValue(d)?
                                 .ToString();
 
                         return !string.Equals(
@@ -2730,34 +2777,41 @@ namespace supai_mp.Controllers
                     })
                     .ToList();
 
+            // ============================================================
+            // 12. NÃO ELIMINAR AUTOMATICAMENTE SE EXISTIREM
+            //     DEPENDÊNCIAS OPERACIONAIS
+            // ============================================================
+
             if (dependenciasNaoUsuario.Count > 0)
             {
                 return Conflict(new
                 {
                     mensagem =
                         "O funcionário a eliminar possui dependências " +
-                        "operacionais que precisam ser transferidas antes " +
-                        "da eliminação.",
+                        "operacionais. A consolidação automática foi bloqueada.",
 
                     idFuncionario =
                         candidatoEliminar.Id,
 
                     dependencias =
-                        dependenciasNaoUsuario
+                        dependenciasNaoUsuario,
+
+                    instrucao =
+                        "As dependências devem ser transferidas ou tratadas " +
+                        "manualmente antes da eliminação."
                 });
             }
 
             // ============================================================
-            // 11. LOCALIZAR ENTIDADE USUARIO
+            // 13. LOCALIZAR USUARIO
             // ============================================================
 
             var entidadeUsuario =
                 _context.Model
                     .GetEntityTypes()
                     .FirstOrDefault(e =>
-                        e.ClrType.Name.Equals(
-                            "Usuario",
-                            StringComparison.OrdinalIgnoreCase));
+                        e.ClrType ==
+                        typeof(Usuario));
 
             if (entidadeUsuario == null)
             {
@@ -2776,12 +2830,12 @@ namespace supai_mp.Controllers
                 return Conflict(new
                 {
                     mensagem =
-                        "Não foi possível identificar a tabela de Usuario."
+                        "Não foi possível identificar a tabela Usuarios."
                 });
             }
 
             // ============================================================
-            // 12. LOCALIZAR FK Usuario → Funcionario
+            // 14. LOCALIZAR FK Usuario -> Funcionario
             // ============================================================
 
             var fkUsuario =
@@ -2816,12 +2870,12 @@ namespace supai_mp.Controllers
                 {
                     mensagem =
                         "Não foi possível identificar a coluna " +
-                        "FuncionarioId da tabela Usuario."
+                        "FuncionarioId da tabela Usuarios."
                 });
             }
 
             // ============================================================
-            // 13. GARANTIR QUE O DUPLICADO NÃO POSSUI VÁRIOS USUÁRIOS
+            // 15. CONTAR USUÁRIOS DO DUPLICADO
             // ============================================================
 
             var sqlUsuarioExiste = $@"
@@ -2829,6 +2883,8 @@ namespace supai_mp.Controllers
         FROM `{tabelaUsuario}`
         WHERE `{colunaFuncionarioUsuario}` =
               @funcionarioId";
+
+            int quantidadeUsuariosEliminar;
 
             await using (var command =
                 _context.Database
@@ -2847,36 +2903,55 @@ namespace supai_mp.Controllers
                 parameter.Value =
                     candidatoEliminar.Id;
 
-                command.Parameters.Add(
-                    parameter);
+                command.Parameters.Add(parameter);
 
                 if (command.Connection!.State !=
                     System.Data.ConnectionState.Open)
                 {
-                    await command.Connection
-                        .OpenAsync();
+                    await command.Connection.OpenAsync();
                 }
 
                 var valor =
                     await command.ExecuteScalarAsync();
 
-                var quantidade =
+                quantidadeUsuariosEliminar =
                     Convert.ToInt32(valor);
+            }
 
-                if (quantidade > 1)
+            if (quantidadeUsuariosEliminar > 1)
+            {
+                return Conflict(new
                 {
-                    return Conflict(new
-                    {
-                        mensagem =
-                            "Foram encontrados vários usuários ligados " +
-                            "ao funcionário duplicado. " +
-                            "A operação foi bloqueada."
-                    });
-                }
+                    mensagem =
+                        "Foram encontrados vários usuários associados " +
+                        "ao funcionário duplicado. " +
+                        "A operação foi bloqueada.",
+
+                    funcionarioId =
+                        candidatoEliminar.Id,
+
+                    quantidadeUsuarios =
+                        quantidadeUsuariosEliminar
+                });
             }
 
             // ============================================================
-            // 14. INICIAR TRANSAÇÃO
+            // 16. GARANTIR QUE EXISTE NO MÁXIMO UM USUÁRIO
+            // ============================================================
+
+            if (quantidadeUsuariosEliminar == 0)
+            {
+                return Conflict(new
+                {
+                    mensagem =
+                        "O funcionário duplicado não possui usuário associado. " +
+                        "A consolidação automática foi bloqueada para evitar " +
+                        "uma eliminação indevida."
+                });
+            }
+
+            // ============================================================
+            // 17. INICIAR TRANSAÇÃO
             // ============================================================
 
             await using var transaction =
@@ -2886,13 +2961,15 @@ namespace supai_mp.Controllers
             try
             {
                 // ========================================================
-                // 15. ELIMINAR USUARIO DO DUPLICADO
+                // 18. ELIMINAR USUARIO DO DUPLICADO
                 // ========================================================
 
                 var sqlEliminarUsuario = $@"
             DELETE FROM `{tabelaUsuario}`
             WHERE `{colunaFuncionarioUsuario}` =
                   @funcionarioId";
+
+                int usuariosEliminados;
 
                 await using (var command =
                     _context.Database
@@ -2914,14 +2991,21 @@ namespace supai_mp.Controllers
                     parameter.Value =
                         candidatoEliminar.Id;
 
-                    command.Parameters.Add(
-                        parameter);
+                    command.Parameters.Add(parameter);
 
-                    await command.ExecuteNonQueryAsync();
+                    usuariosEliminados =
+                        await command.ExecuteNonQueryAsync();
+                }
+
+                if (usuariosEliminados != 1)
+                {
+                    throw new InvalidOperationException(
+                        "O sistema esperava eliminar exatamente um usuário, " +
+                        $"mas eliminou {usuariosEliminados}.");
                 }
 
                 // ========================================================
-                // 16. ELIMINAR FUNCIONARIO DUPLICADO
+                // 19. ELIMINAR FUNCIONÁRIO DUPLICADO
                 // ========================================================
 
                 _context.Funcionarios.Remove(
@@ -2930,19 +3014,21 @@ namespace supai_mp.Controllers
                 await _context.SaveChangesAsync();
 
                 // ========================================================
-                // 17. CONFIRMAR TRANSAÇÃO
+                // 20. CONFIRMAR TRANSAÇÃO
                 // ========================================================
 
                 await transaction.CommitAsync();
+
+                // ========================================================
+                // 21. RESPOSTA
+                // ========================================================
 
                 return Ok(new
                 {
                     sucesso = true,
 
                     mensagem =
-                        $"O funcionário duplicado " +
-                        $"'{candidatoEliminar.NomeCompleto}' " +
-                        "foi consolidado com sucesso.",
+                        "Duplicado consolidado com sucesso.",
 
                     mantido = new
                     {
@@ -2954,6 +3040,12 @@ namespace supai_mp.Controllers
 
                         nip =
                             candidatoManter.Nip,
+
+                        categoria =
+                            candidatoManter.Categoria.ToString(),
+
+                        funcao =
+                            candidatoManter.Funcao,
 
                         seccaoId =
                             candidatoManter.SeccaoId,
@@ -2971,12 +3063,27 @@ namespace supai_mp.Controllers
                         nome =
                             candidatoEliminar.NomeCompleto,
 
+                        nip =
+                            candidatoEliminar.Nip,
+
+                        categoria =
+                            candidatoEliminar.Categoria.ToString(),
+
+                        funcao =
+                            candidatoEliminar.Funcao,
+
+                        seccaoId =
+                            candidatoEliminar.SeccaoId,
+
                         totalDependencias =
                             totalDependenciasPorFuncionario[
                                 candidatoEliminar.Id]
                     },
 
-                    usuarioEliminado = true
+                    usuarioEliminado = true,
+
+                    dependenciasEliminadas =
+                        dependenciasEliminar
                 });
             }
             catch (Exception ex)
@@ -2989,9 +3096,11 @@ namespace supai_mp.Controllers
 
                     mensagem =
                         "A consolidação falhou. " +
-                        "Nenhuma alteração foi confirmada.",
+                        "A transação foi revertida e nenhuma alteração " +
+                        "foi confirmada.",
 
                     detalhe =
+                        ex.InnerException?.Message ??
                         ex.Message
                 });
             }

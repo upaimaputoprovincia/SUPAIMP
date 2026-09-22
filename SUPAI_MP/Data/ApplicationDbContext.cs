@@ -361,6 +361,17 @@ namespace supai_mp.Data
                     g.OrdemRotacao
                 })
                 .IsUnique();
+
+            // =========================================================
+            // USUARIO -> FUNCIONARIO
+            // =========================================================
+
+            modelBuilder.Entity<Usuario>()
+                .HasOne(u => u.Funcionario)
+                .WithMany()
+                .HasForeignKey(u => u.FuncionarioId)
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.Restrict);
         }
     }
 }
