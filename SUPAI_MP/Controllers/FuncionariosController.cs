@@ -1932,6 +1932,412 @@ namespace supai_mp.Controllers
             return Ok(resultado);
         }
 
+        [HttpGet("duplicados/analise")]
+        [Authorize(Roles = "Administrador")]
+        public async Task<IActionResult> AnalisarDuplicados()
+        {
+            var funcionarios = await _context.Funcionarios
+                .Include(f => f.Seccao)
+                .AsNoTracking()
+                .ToListAsync();
+
+            var gruposDuplicados = funcionarios
+                .Where(f => !string.IsNullOrWhiteSpace(f.NomeCompleto))
+                .GroupBy(f => f.NomeCompleto.Trim().ToUpper())
+                .Where(g => g.Count() > 1)
+                .OrderBy(g => g.Key)
+                .ToList();
+
+            var resultado = new List<GrupoDuplicadoAnaliseDto>();
+
+            // Descobrir entidades que possuem FK para Funcionario
+            var entidadesDependentes = _context.Model
+                .GetEntityTypes()
+                .Where(e =>
+                    e.GetForeignKeys()
+                     .Any(fk =>
+                         fk.PrincipalEntityType.ClrType ==
+                         typeof(Funcionario)))
+                .ToList();
+
+            foreach (var grupo in gruposDuplicados)
+            {
+                var analiseGrupo = new GrupoDuplicadoAnaliseDto
+                {
+                    Nome = grupo.First().NomeCompleto.Trim(),
+                    Quantidade = grupo.Count()
+                };
+
+                var analisesFuncionarios =
+                    new List<FuncionarioDuplicadoAnaliseDto>();
+
+                foreach (var funcionario in grupo)
+                {
+                    int totalDependencias = 0;
+
+                    // ------------------------------------------
+                    // CONTAR TODAS AS DEPENDÊNCIAS
+                    // ------------------------------------------
+
+                    foreach (var entidade in entidadesDependentes)
+                    {
+                        var foreignKeys = entidade
+                            .GetForeignKeys()
+                            .Where(fk =>
+                                fk.PrincipalEntityType.ClrType ==
+                                typeof(Funcionario))
+                            .ToList();
+
+                        foreach (var fk in foreignKeys)
+                        {
+                            if (fk.Properties.Count != 1)
+                                continue;
+
+                            var propriedadeFk = fk.Properties[0];
+
+                            var tabela = entidade.GetTableName();
+
+                            if (string.IsNullOrWhiteSpace(tabela))
+                                continue;
+
+                            var coluna = propriedadeFk.GetColumnName(
+                                StoreObjectIdentifier.Table(
+                                    tabela,
+                                    entidade.GetSchema()));
+
+                            if (string.IsNullOrWhiteSpace(coluna))
+                                continue;
+
+                            var sql = $@"
+                        SELECT COUNT(*)
+                        FROM `{tabela}`
+                        WHERE `{coluna}` = @funcionarioId";
+
+                            await using var command =
+                                _context.Database
+                                    .GetDbConnection()
+                                    .CreateCommand();
+
+                            command.CommandText = sql;
+
+                            var parameter = command.CreateParameter();
+
+                            parameter.ParameterName =
+                                "@funcionarioId";
+
+                            parameter.Value =
+                                funcionario.Id;
+
+                            command.Parameters.Add(parameter);
+
+                            if (command.Connection!.State !=
+                                System.Data.ConnectionState.Open)
+                            {
+                                await command.Connection.OpenAsync();
+                            }
+
+                            var valor =
+                                await command.ExecuteScalarAsync();
+
+                            totalDependencias +=
+                                Convert.ToInt32(valor);
+                        }
+                    }
+
+                    // ------------------------------------------
+                    // OBTER USUARIO
+                    // ------------------------------------------
+
+                    int usuarioId = funcionario.Id;
+                    string? nomeUsuario = null;
+                    string? perfil = null;
+
+                    var entidadeUsuario = _context.Model
+                        .GetEntityTypes()
+                        .FirstOrDefault(e =>
+                            e.ClrType.Name.Equals(
+                                "Usuario",
+                                StringComparison.OrdinalIgnoreCase));
+
+                    if (entidadeUsuario != null)
+                    {
+                        var foreignKey = entidadeUsuario
+                            .GetForeignKeys()
+                            .FirstOrDefault(fk =>
+                                fk.PrincipalEntityType.ClrType ==
+                                typeof(Funcionario));
+
+                        if (foreignKey != null &&
+                            foreignKey.Properties.Count == 1)
+                        {
+                            var propriedadeFk =
+                                foreignKey.Properties[0];
+
+                            var tabelaUsuario =
+                                entidadeUsuario.GetTableName();
+
+                            if (!string.IsNullOrWhiteSpace(tabelaUsuario))
+                            {
+                                var colunaFuncionario =
+                                    propriedadeFk.GetColumnName(
+                                        StoreObjectIdentifier.Table(
+                                            tabelaUsuario,
+                                            entidadeUsuario.GetSchema()));
+
+                                if (!string.IsNullOrWhiteSpace(
+                                    colunaFuncionario))
+                                {
+                                    var sqlUsuario = $@"
+                                SELECT *
+                                FROM `{tabelaUsuario}`
+                                WHERE `{colunaFuncionario}` =
+                                      @funcionarioId";
+
+                                    await using var commandUsuario =
+                                        _context.Database
+                                            .GetDbConnection()
+                                            .CreateCommand();
+
+                                    commandUsuario.CommandText =
+                                        sqlUsuario;
+
+                                    var parameterUsuario =
+                                        commandUsuario.CreateParameter();
+
+                                    parameterUsuario.ParameterName =
+                                        "@funcionarioId";
+
+                                    parameterUsuario.Value =
+                                        funcionario.Id;
+
+                                    commandUsuario.Parameters.Add(
+                                        parameterUsuario);
+
+                                    if (commandUsuario.Connection!.State !=
+                                        System.Data.ConnectionState.Open)
+                                    {
+                                        await commandUsuario.Connection
+                                            .OpenAsync();
+                                    }
+
+                                    await using var reader =
+                                        await commandUsuario
+                                            .ExecuteReaderAsync();
+
+                                    if (await reader.ReadAsync())
+                                    {
+                                        for (int i = 0;
+                                             i < reader.FieldCount;
+                                             i++)
+                                        {
+                                            var coluna =
+                                                reader.GetName(i);
+
+                                            if (
+                                                coluna.Equals(
+                                                    "Username",
+                                                    StringComparison
+                                                        .OrdinalIgnoreCase)
+                                                ||
+                                                coluna.Equals(
+                                                    "NomeUsuario",
+                                                    StringComparison
+                                                        .OrdinalIgnoreCase)
+                                                ||
+                                                coluna.Equals(
+                                                    "Nome",
+                                                    StringComparison
+                                                        .OrdinalIgnoreCase))
+                                            {
+                                                if (!reader.IsDBNull(i))
+                                                {
+                                                    nomeUsuario =
+                                                        reader.GetValue(i)
+                                                            .ToString();
+                                                }
+                                            }
+
+                                            if (
+                                                coluna.Equals(
+                                                    "Perfil",
+                                                    StringComparison
+                                                        .OrdinalIgnoreCase)
+                                                ||
+                                                coluna.Equals(
+                                                    "Role",
+                                                    StringComparison
+                                                        .OrdinalIgnoreCase))
+                                            {
+                                                if (!reader.IsDBNull(i))
+                                                {
+                                                    perfil =
+                                                        reader.GetValue(i)
+                                                            .ToString();
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    analisesFuncionarios.Add(
+                        new FuncionarioDuplicadoAnaliseDto
+                        {
+                            Id = funcionario.Id,
+
+                            NomeCompleto =
+                                funcionario.NomeCompleto,
+
+                            Nip =
+                                funcionario.Nip,
+
+                            SeccaoId =
+                                funcionario.SeccaoId,
+
+                            SeccaoNome =
+                                funcionario.Seccao?.Nome
+                                ?? "Sem secção",
+
+                            Categoria =
+                                (int)funcionario.Categoria,
+
+                            Funcao =
+                                funcionario.Funcao,
+
+                            UsuarioId =
+                                usuarioId,
+
+                            NomeUsuario =
+                                nomeUsuario,
+
+                            Perfil =
+                                perfil,
+
+                            TotalDependencias =
+                                totalDependencias,
+
+                            TemSecao =
+                                funcionario.SeccaoId.HasValue
+                        });
+                }
+
+                // ------------------------------------------
+                // DETERMINAR CANDIDATO A MANTER
+                // ------------------------------------------
+
+                var maiorDependencias =
+                    analisesFuncionarios
+                        .Max(f => f.TotalDependencias);
+
+                var candidatos =
+                    analisesFuncionarios
+                        .Where(f =>
+                            f.TotalDependencias ==
+                            maiorDependencias)
+                        .ToList();
+
+                // Primeiro critério:
+                // maior número de dependências.
+                var candidato = candidatos.First();
+
+                // Segundo critério:
+                // se houver empate, privilegiar quem
+                // possui secção.
+                var comSecao =
+                    candidatos
+                        .Where(f => f.TemSecao)
+                        .ToList();
+
+                if (comSecao.Count == 1)
+                {
+                    candidato = comSecao[0];
+                }
+                else if (comSecao.Count > 1)
+                {
+                    // Se ainda houver empate, não
+                    // decidimos automaticamente.
+                    analiseGrupo.RequerDecisaoManual = true;
+
+                    analiseGrupo.Motivo =
+                        "Existem vários registros com dependências " +
+                        "e/ou secção atribuída. É necessária decisão manual.";
+                }
+
+                // Se todos têm exatamente a mesma situação,
+                // usamos o menor ID apenas como último critério.
+                if (!analiseGrupo.RequerDecisaoManual)
+                {
+                    var empateTotal =
+                        analisesFuncionarios
+                            .Where(f =>
+                                f.TotalDependencias ==
+                                candidato.TotalDependencias &&
+                                f.TemSecao ==
+                                candidato.TemSecao)
+                            .ToList();
+
+                    if (empateTotal.Count > 1)
+                    {
+                        candidato =
+                            empateTotal
+                                .OrderBy(f => f.Id)
+                                .First();
+
+                        analiseGrupo.Motivo =
+                            "Empate entre os registros. " +
+                            "Foi selecionado o menor ID como " +
+                            "candidato, mas a decisão será " +
+                            "confirmada antes da eliminação.";
+                    }
+                }
+
+                // ------------------------------------------
+                // MARCAR CANDIDATO
+                // ------------------------------------------
+
+                foreach (var funcionario in analisesFuncionarios)
+                {
+                    funcionario.CandidatoManter =
+                        !analiseGrupo.RequerDecisaoManual &&
+                        funcionario.Id == candidato.Id;
+
+                    if (funcionario.Id == candidato.Id)
+                    {
+                        if (string.IsNullOrWhiteSpace(
+                            analiseGrupo.Motivo))
+                        {
+                            analiseGrupo.Motivo =
+                                "Registro com maior quantidade " +
+                                "de dependências e/ou secção atribuída.";
+                        }
+
+                        funcionario.Motivo =
+                            analiseGrupo.Motivo;
+                    }
+                    else
+                    {
+                        funcionario.Motivo =
+                            "Candidato a duplicado para eliminação, " +
+                            "após transferência segura das relações.";
+                    }
+                }
+
+                analiseGrupo.IdSugeridoManter =
+                    analiseGrupo.RequerDecisaoManual
+                        ? null
+                        : candidato.Id;
+
+                analiseGrupo.Funcionarios =
+                    analisesFuncionarios;
+
+                resultado.Add(analiseGrupo);
+            }
+
+            return Ok(resultado);
+        }
+
         // ============================================================
         // DELETE: api/Funcionarios/{id}
         // ============================================================
