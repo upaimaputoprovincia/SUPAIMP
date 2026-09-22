@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Storage;
 using supai_mp.Data;
 using supai_mp.DTOs;
 using supai_mp.Models;
@@ -2370,6 +2371,10 @@ namespace supai_mp.Controllers
                 });
             }
 
+            // =========================================================
+            // 1. CARREGAR OS DOIS FUNCIONÁRIOS
+            // =========================================================
+
             var funcionarioManter = await _context.Funcionarios
                 .FirstOrDefaultAsync(f => f.Id == dto.IdManter);
 
@@ -2394,19 +2399,23 @@ namespace supai_mp.Controllers
                 });
             }
 
-            // ---------------------------------------------------------
-            // 1. CONFIRMAR QUE SÃO REALMENTE DUPLICADOS
-            // ---------------------------------------------------------
+            // =========================================================
+            // 2. VALIDAR NOME
+            // =========================================================
 
-            var nomeManter = funcionarioManter.NomeCompleto?.Trim();
-            var nomeEliminar = funcionarioEliminar.NomeCompleto?.Trim();
+            var nomeManter =
+                funcionarioManter.NomeCompleto?.Trim();
+
+            var nomeEliminar =
+                funcionarioEliminar.NomeCompleto?.Trim();
 
             if (string.IsNullOrWhiteSpace(nomeManter) ||
                 string.IsNullOrWhiteSpace(nomeEliminar))
             {
                 return BadRequest(new
                 {
-                    mensagem = "Um dos funcionários não possui nome válido."
+                    mensagem =
+                        "Um dos funcionários não possui nome válido."
                 });
             }
 
@@ -2419,13 +2428,13 @@ namespace supai_mp.Controllers
                 {
                     mensagem =
                         "Os dois funcionários não possuem o mesmo nome. " +
-                        "A consolidação foi bloqueada por segurança."
+                        "A consolidação foi bloqueada."
                 });
             }
 
-            // ---------------------------------------------------------
-            // 2. PROTEGER CASOS QUE EXIGEM DECISÃO MANUAL
-            // ---------------------------------------------------------
+            // =========================================================
+            // 3. PROTEGER CASOS QUE EXIGEM DECISÃO MANUAL
+            // =========================================================
 
             var casosManuais = new HashSet<string>(
                 StringComparer.OrdinalIgnoreCase)
@@ -2441,13 +2450,67 @@ namespace supai_mp.Controllers
                 {
                     mensagem =
                         $"A consolidação de '{nomeManter}' está bloqueada. " +
-                        "Este caso exige decisão manual antes da eliminação."
+                        "Este caso exige decisão manual."
                 });
             }
 
-            // ---------------------------------------------------------
-            // 3. VERIFICAR DEPENDÊNCIAS
-            // ---------------------------------------------------------
+            // =========================================================
+            // 4. DEFINIR O CANDIDATO CORRETO
+            // =========================================================
+
+            var funcionariosMesmoNome = await _context.Funcionarios
+                .Where(f =>
+                    f.NomeCompleto != null &&
+                    f.NomeCompleto.Trim().ToUpper() ==
+                    nomeManter.ToUpper())
+                .ToListAsync();
+
+            if (funcionariosMesmoNome.Count != 2)
+            {
+                return Conflict(new
+                {
+                    mensagem =
+                        $"O nome '{nomeManter}' não possui exatamente " +
+                        "dois registros neste momento. " +
+                        "A consolidação foi bloqueada para evitar eliminação indevida."
+                });
+            }
+
+            // =========================================================
+            // 5. DETERMINAR QUAL DEVE SER MANTIDO
+            // =========================================================
+
+            var candidatoManter = funcionariosMesmoNome
+                .OrderByDescending(f => f.SeccaoId.HasValue)
+                .ThenBy(f => f.Id)
+                .First();
+
+            if (candidatoManter.Id != dto.IdManter)
+            {
+                return Conflict(new
+                {
+                    mensagem =
+                        $"O ID {dto.IdManter} não corresponde ao candidato " +
+                        $"atualmente definido para manutenção. " +
+                        $"O candidato atual é o ID {candidatoManter.Id}.",
+                    idCandidatoManter = candidatoManter.Id,
+                    idRecebido = dto.IdManter
+                });
+            }
+
+            if (dto.IdEliminar == candidatoManter.Id)
+            {
+                return Conflict(new
+                {
+                    mensagem =
+                        "O ID indicado para eliminação é justamente o registro " +
+                        "que deveria ser mantido."
+                });
+            }
+
+            // =========================================================
+            // 6. VERIFICAR DEPENDÊNCIAS DO FUNCIONÁRIO A ELIMINAR
+            // =========================================================
 
             var entidadesDependentes = _context.Model
                 .GetEntityTypes()
@@ -2458,7 +2521,7 @@ namespace supai_mp.Controllers
                          typeof(Funcionario)))
                 .ToList();
 
-            var dependenciasEncontradas = new List<object>();
+            var dependencias = new List<object>();
 
             foreach (var entidade in entidadesDependentes)
             {
@@ -2495,7 +2558,8 @@ namespace supai_mp.Controllers
                 WHERE `{coluna}` = @funcionarioId";
 
                     await using var command =
-                        _context.Database.GetDbConnection().CreateCommand();
+                        _context.Database.GetDbConnection()
+                            .CreateCommand();
 
                     command.CommandText = sql;
 
@@ -2505,18 +2569,21 @@ namespace supai_mp.Controllers
 
                     command.Parameters.Add(parameter);
 
-                    if (command.Connection!.State != ConnectionState.Open)
+                    if (command.Connection!.State !=
+                        System.Data.ConnectionState.Open)
                     {
                         await command.Connection.OpenAsync();
                     }
 
-                    var resultado = await command.ExecuteScalarAsync();
+                    var valor =
+                        await command.ExecuteScalarAsync();
 
-                    var quantidade = Convert.ToInt32(resultado);
+                    var quantidade =
+                        Convert.ToInt32(valor);
 
                     if (quantidade > 0)
                     {
-                        dependenciasEncontradas.Add(new
+                        dependencias.Add(new
                         {
                             entidade = entidade.ClrType.Name,
                             tabela,
@@ -2527,42 +2594,234 @@ namespace supai_mp.Controllers
                 }
             }
 
-            // ---------------------------------------------------------
-            // 4. POR SEGURANÇA, AINDA NÃO APAGAR
-            // ---------------------------------------------------------
+            // =========================================================
+            // 7. PERMITIR SOMENTE O CASO EM QUE A ÚNICA DEPENDÊNCIA
+            //    DO FUNCIONÁRIO É O USUARIO
+            // =========================================================
 
-            return Ok(new
+            var dependenciasNaoUsuario = dependencias
+                .Where(d =>
+                {
+                    var propriedade =
+                        d.GetType().GetProperty("entidade");
+
+                    var valor =
+                        propriedade?.GetValue(d)?.ToString();
+
+                    return !string.Equals(
+                        valor,
+                        "Usuario",
+                        StringComparison.OrdinalIgnoreCase);
+                })
+                .ToList();
+
+            if (dependenciasNaoUsuario.Count > 0)
             {
-                sucesso = false,
-                prontoParaConsolidar = false,
-
-                mensagem =
-                    "Os dois registros foram validados como duplicados. " +
-                    "As dependências do registro a eliminar foram identificadas. " +
-                    "Nenhum dado foi alterado ou eliminado.",
-
-                funcionarioManter = new
+                return Conflict(new
                 {
-                    funcionarioManter.Id,
-                    funcionarioManter.NomeCompleto,
-                    funcionarioManter.Nip,
-                    funcionarioManter.Categoria,
-                    funcionarioManter.Funcao,
-                    funcionarioManter.SeccaoId
-                },
+                    mensagem =
+                        "O funcionário a eliminar possui dependências adicionais " +
+                        "que precisam ser transferidas antes da eliminação.",
+                    idFuncionario = funcionarioEliminar.Id,
+                    dependencias = dependenciasNaoUsuario
+                });
+            }
 
-                funcionarioEliminar = new
+            // =========================================================
+            // 8. LOCALIZAR O USUARIO DO FUNCIONÁRIO A ELIMINAR
+            // =========================================================
+
+            var entidadeUsuario = _context.Model
+                .GetEntityTypes()
+                .FirstOrDefault(e =>
+                    e.ClrType.Name.Equals(
+                        "Usuario",
+                        StringComparison.OrdinalIgnoreCase));
+
+            if (entidadeUsuario == null)
+            {
+                return Conflict(new
                 {
-                    funcionarioEliminar.Id,
-                    funcionarioEliminar.NomeCompleto,
-                    funcionarioEliminar.Nip,
-                    funcionarioEliminar.Categoria,
-                    funcionarioEliminar.Funcao,
-                    funcionarioEliminar.SeccaoId
-                },
+                    mensagem =
+                        "A entidade Usuario não foi encontrada no modelo EF."
+                });
+            }
 
-                dependencias = dependenciasEncontradas
-            });
+            // =========================================================
+            // 9. CONFIRMAR QUE EXISTE Usuario LIGADO AO DUPLICADO
+            // =========================================================
+
+            var tabelaUsuario =
+                entidadeUsuario.GetTableName();
+
+            if (string.IsNullOrWhiteSpace(tabelaUsuario))
+            {
+                return Conflict(new
+                {
+                    mensagem =
+                        "Não foi possível identificar a tabela de Usuario."
+                });
+            }
+
+            var fkUsuario =
+                entidadeUsuario
+                    .GetForeignKeys()
+                    .FirstOrDefault(fk =>
+                        fk.PrincipalEntityType.ClrType ==
+                        typeof(Funcionario));
+
+            if (fkUsuario == null || fkUsuario.Properties.Count != 1)
+            {
+                return Conflict(new
+                {
+                    mensagem =
+                        "Não foi possível identificar a relação Usuario → Funcionario."
+                });
+            }
+
+            var colunaFuncionarioUsuario =
+                fkUsuario.Properties[0].GetColumnName(
+                    StoreObjectIdentifier.Table(
+                        tabelaUsuario,
+                        entidadeUsuario.GetSchema()));
+
+            if (string.IsNullOrWhiteSpace(colunaFuncionarioUsuario))
+            {
+                return Conflict(new
+                {
+                    mensagem =
+                        "Não foi possível identificar a coluna FuncionarioId da tabela Usuario."
+                });
+            }
+
+            // =========================================================
+            // 10. VERIFICAR SE EXISTE Usuario DO DUPLICADO
+            // =========================================================
+
+            var sqlUsuarioExiste = $@"
+        SELECT COUNT(*)
+        FROM `{tabelaUsuario}`
+        WHERE `{colunaFuncionarioUsuario}` = @funcionarioId";
+
+            await using (var command =
+                _context.Database.GetDbConnection().CreateCommand())
+            {
+                command.CommandText = sqlUsuarioExiste;
+
+                var parameter = command.CreateParameter();
+                parameter.ParameterName = "@funcionarioId";
+                parameter.Value = funcionarioEliminar.Id;
+
+                command.Parameters.Add(parameter);
+
+                if (command.Connection!.State !=
+                    System.Data.ConnectionState.Open)
+                {
+                    await command.Connection.OpenAsync();
+                }
+
+                var valor =
+                    await command.ExecuteScalarAsync();
+
+                var quantidade =
+                    Convert.ToInt32(valor);
+
+                if (quantidade > 1)
+                {
+                    return Conflict(new
+                    {
+                        mensagem =
+                            "Foram encontrados vários usuários ligados ao " +
+                            "funcionário duplicado. A operação foi bloqueada."
+                    });
+                }
+            }
+
+            // =========================================================
+            // 11. TRANSAÇÃO
+            // =========================================================
+
+            await using var transaction =
+                await _context.Database.BeginTransactionAsync();
+
+            try
+            {
+                // -----------------------------------------------------
+                // Apagar Usuario do funcionário duplicado
+                // -----------------------------------------------------
+
+                var sqlEliminarUsuario = $@"
+            DELETE FROM `{tabelaUsuario}`
+            WHERE `{colunaFuncionarioUsuario}` = @funcionarioId";
+
+                await using (var command =
+                    _context.Database.GetDbConnection().CreateCommand())
+                {
+                    command.Transaction =
+                        transaction.GetDbTransaction();
+
+                    command.CommandText =
+                        sqlEliminarUsuario;
+
+                    var parameter = command.CreateParameter();
+                    parameter.ParameterName = "@funcionarioId";
+                    parameter.Value = funcionarioEliminar.Id;
+
+                    command.Parameters.Add(parameter);
+
+                    await command.ExecuteNonQueryAsync();
+                }
+
+                // -----------------------------------------------------
+                // Apagar Funcionario duplicado
+                // -----------------------------------------------------
+
+                _context.Funcionarios.Remove(funcionarioEliminar);
+
+                await _context.SaveChangesAsync();
+
+                // -----------------------------------------------------
+                // Confirmar transação
+                // -----------------------------------------------------
+
+                await transaction.CommitAsync();
+
+                return Ok(new
+                {
+                    sucesso = true,
+                    mensagem =
+                        $"O funcionário duplicado '{nomeEliminar}' foi " +
+                        "consolidado com sucesso.",
+
+                    mantido = new
+                    {
+                        id = funcionarioManter.Id,
+                        nome = funcionarioManter.NomeCompleto,
+                        nip = funcionarioManter.Nip,
+                        seccaoId = funcionarioManter.SeccaoId
+                    },
+
+                    eliminado = new
+                    {
+                        id = funcionarioEliminar.Id,
+                        nome = funcionarioEliminar.NomeCompleto
+                    },
+
+                    usuarioEliminado = true
+                });
+            }
+            catch (Exception ex)
+            {
+                await transaction.RollbackAsync();
+
+                return StatusCode(500, new
+                {
+                    sucesso = false,
+                    mensagem =
+                        "A consolidação falhou. Nenhuma alteração foi confirmada.",
+                    detalhe = ex.Message
+                });
+            }
         }
 
         [HttpGet("duplicados/usuario-dependencias")]
