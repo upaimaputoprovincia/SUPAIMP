@@ -2508,42 +2508,29 @@ namespace supai_mp.Controllers
             // exigimos decisão manual.
             // ============================================================
 
-            var mesmaCategoria =
-                funcionarioManter.Categoria ==
-                funcionarioEliminar.Categoria;
+            var mesmaCategoria = funcionarioManter.Categoria == funcionarioEliminar.Categoria;
 
-            var mesmaFuncao =
-                string.Equals(
-                    funcionarioManter.Funcao?.Trim(),
-                    funcionarioEliminar.Funcao?.Trim(),
-                    StringComparison.OrdinalIgnoreCase);
+            var mesmaFuncao = string.Equals(
+                funcionarioManter.Funcao?.Trim(),
+                funcionarioEliminar.Funcao?.Trim(),
+                StringComparison.OrdinalIgnoreCase);
 
-            var mesmaSeccao =
-                funcionarioManter.SeccaoId ==
-                funcionarioEliminar.SeccaoId;
+            var mesmaSeccao = funcionarioManter.SeccaoId == funcionarioEliminar.SeccaoId;
 
-            if (!mesmaCategoria ||
-                !mesmaFuncao ||
-                !mesmaSeccao)
+            if ((!mesmaCategoria || !mesmaFuncao || !mesmaSeccao)
+                && !dto.ConfirmacaoManual)
             {
                 return Conflict(new
                 {
-                    mensagem =
-                        "Os registros possuem diferenças relevantes " +
-                        "de categoria, função ou secção. " +
-                        "A consolidação automática foi bloqueada " +
-                        "e requer decisão manual.",
-
-                    idManter = funcionarioManter.Id,
-                    idEliminar = funcionarioEliminar.Id,
-
+                    mensagem = "Os registros possuem diferenças relevantes de categoria, função ou secção. A consolidação automática foi bloqueada e requer decisão manual.",
+                    idManter = dto.IdManter,
+                    idEliminar = dto.IdEliminar,
                     manter = new
                     {
                         categoria = funcionarioManter.Categoria.ToString(),
                         funcao = funcionarioManter.Funcao,
                         seccaoId = funcionarioManter.SeccaoId
                     },
-
                     eliminar = new
                     {
                         categoria = funcionarioEliminar.Categoria.ToString(),

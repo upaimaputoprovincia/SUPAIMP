@@ -4,6 +4,7 @@
     {
         public int IdManter { get; set; }
         public int IdEliminar { get; set; }
+        public bool ConfirmacaoManual { get; set; }
     }
 
     public class ConsolidacaoFuncionarioResultadoDto
@@ -24,6 +25,6 @@
 
         public string Mensagem { get; set; } = string.Empty;
 
-        public bool ConfirmacaoManual { get; set; }
+        
     }
 }
