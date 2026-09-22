@@ -2,6 +2,7 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata;
 using supai_mp.Data;
 using supai_mp.DTOs;
 using supai_mp.Models;
@@ -1634,6 +1635,125 @@ namespace supai_mp.Controllers
                 .ToList();
 
             return Ok(duplicados);
+        }
+
+        [HttpGet("duplicados/detalhes")]
+        [Authorize(Roles = "Administrador")]
+        public async Task<IActionResult> ObterDuplicadosDetalhes()
+        {
+            var funcionarios = await _context.Funcionarios
+                .Include(f => f.Seccao)
+                .AsNoTracking()
+                .ToListAsync();
+
+            var gruposDuplicados = funcionarios
+                .Where(f => !string.IsNullOrWhiteSpace(f.NomeCompleto))
+                .GroupBy(f => f.NomeCompleto.Trim().ToUpper())
+                .Where(g => g.Count() > 1)
+                .OrderBy(g => g.Key)
+                .ToList();
+
+            var resultado = new List<FuncionarioDuplicadoDetalheDto>();
+
+            // Descobrir todas as entidades que possuem FK para Funcionario
+            var entidadesDependentes = _context.Model
+                .GetEntityTypes()
+                .Where(e =>
+                    e.GetForeignKeys()
+                     .Any(fk => fk.PrincipalEntityType.ClrType == typeof(Funcionario)))
+                .ToList();
+
+            foreach (var grupo in gruposDuplicados)
+            {
+                foreach (var funcionario in grupo.OrderBy(f => f.Id))
+                {
+                    var detalhe = new FuncionarioDuplicadoDetalheDto
+                    {
+                        Id = funcionario.Id,
+                        NomeCompleto = funcionario.NomeCompleto,
+                        Nip = funcionario.Nip,
+                        Categoria = (int)funcionario.Categoria,
+                        Funcao = funcionario.Funcao,
+                        SeccaoId = funcionario.SeccaoId,
+                        SeccaoNome = funcionario.Seccao?.Nome ?? "Sem secção",
+                        Estado = (int)funcionario.Estado
+                    };
+
+                    foreach (var entidade in entidadesDependentes)
+                    {
+                        var foreignKeys = entidade
+                            .GetForeignKeys()
+                            .Where(fk =>
+                                fk.PrincipalEntityType.ClrType == typeof(Funcionario))
+                            .ToList();
+
+                        foreach (var fk in foreignKeys)
+                        {
+                            // Neste momento trabalhamos com FKs simples
+                            if (fk.Properties.Count != 1)
+                                continue;
+
+                            var propriedadeFk = fk.Properties[0];
+
+                            var tabela = entidade.GetTableName();
+                            var coluna = propriedadeFk.GetColumnName(
+                                StoreObjectIdentifier.Table(
+                                    tabela!,
+                                    entidade.GetSchema()));
+
+                            if (string.IsNullOrWhiteSpace(tabela) ||
+                                string.IsNullOrWhiteSpace(coluna))
+                            {
+                                continue;
+                            }
+
+                            var sql = $@"
+                        SELECT COUNT(*)
+                        FROM `{tabela}`
+                        WHERE `{coluna}` = @funcionarioId";
+
+                            await using var command =
+                                _context.Database.GetDbConnection().CreateCommand();
+
+                            command.CommandText = sql;
+
+                            var parameter = command.CreateParameter();
+                            parameter.ParameterName = "@funcionarioId";
+                            parameter.Value = funcionario.Id;
+
+                            command.Parameters.Add(parameter);
+
+                            if (command.Connection!.State !=
+                                System.Data.ConnectionState.Open)
+                            {
+                                await command.Connection.OpenAsync();
+                            }
+
+                            var valor = await command.ExecuteScalarAsync();
+
+                            var quantidade = Convert.ToInt32(valor);
+
+                            if (quantidade > 0)
+                            {
+                                detalhe.Dependencias.Add(
+                                    new DependenciaFuncionarioDto
+                                    {
+                                        Entidade = entidade.ClrType.Name,
+                                        Tabela = tabela,
+                                        Quantidade = quantidade
+                                    });
+                            }
+                        }
+                    }
+
+                    detalhe.TotalDependencias =
+                        detalhe.Dependencias.Sum(d => d.Quantidade);
+
+                    resultado.Add(detalhe);
+                }
+            }
+
+            return Ok(resultado);
         }
 
         // ============================================================
