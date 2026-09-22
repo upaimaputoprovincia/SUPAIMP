@@ -2564,6 +2564,148 @@ namespace supai_mp.Controllers
                 dependencias = dependenciasEncontradas
             });
         }
+
+        [HttpGet("duplicados/usuario-dependencias")]
+        [Authorize(Roles = "Administrador")]
+        public async Task<IActionResult> ObterDependenciasUsuariosDuplicados()
+        {
+            var funcionarios = await _context.Funcionarios
+                .AsNoTracking()
+                .ToListAsync();
+
+            var gruposDuplicados = funcionarios
+                .Where(f => !string.IsNullOrWhiteSpace(f.NomeCompleto))
+                .GroupBy(f => f.NomeCompleto.Trim().ToUpper())
+                .Where(g => g.Count() > 1)
+                .OrderBy(g => g.Key)
+                .ToList();
+
+            var resultado = new List<UsuarioDuplicadoDependenciasDto>();
+
+            // Procurar a entidade Usuario no modelo EF
+            var entidadeUsuario = _context.Model
+                .GetEntityTypes()
+                .FirstOrDefault(e =>
+                    e.ClrType.Name.Equals(
+                        "Usuario",
+                        StringComparison.OrdinalIgnoreCase));
+
+            if (entidadeUsuario == null)
+            {
+                return NotFound(new
+                {
+                    mensagem =
+                        "A entidade Usuario não foi encontrada no modelo do Entity Framework."
+                });
+            }
+
+            // Todas as entidades que possuem FK para Usuario
+            var entidadesDependentes = _context.Model
+                .GetEntityTypes()
+                .Where(e =>
+                    e.GetForeignKeys()
+                     .Any(fk =>
+                         fk.PrincipalEntityType.ClrType ==
+                         entidadeUsuario.ClrType))
+                .ToList();
+
+            foreach (var grupo in gruposDuplicados)
+            {
+                foreach (var funcionario in grupo.OrderBy(f => f.Id))
+                {
+                    // Como já verificámos que UsuarioId == FuncionarioId,
+                    // usamos o próprio ID do funcionário.
+                    var usuarioId = funcionario.Id;
+
+                    var item = new UsuarioDuplicadoDependenciasDto
+                    {
+                        FuncionarioId = funcionario.Id,
+                        NomeCompleto = funcionario.NomeCompleto,
+                        UsuarioId = usuarioId
+                    };
+
+                    foreach (var entidade in entidadesDependentes)
+                    {
+                        var foreignKeys = entidade
+                            .GetForeignKeys()
+                            .Where(fk =>
+                                fk.PrincipalEntityType.ClrType ==
+                                entidadeUsuario.ClrType)
+                            .ToList();
+
+                        foreach (var fk in foreignKeys)
+                        {
+                            if (fk.Properties.Count != 1)
+                                continue;
+
+                            var tabela = entidade.GetTableName();
+
+                            if (string.IsNullOrWhiteSpace(tabela))
+                                continue;
+
+                            var propriedadeFk = fk.Properties[0];
+
+                            var coluna = propriedadeFk.GetColumnName(
+                                StoreObjectIdentifier.Table(
+                                    tabela,
+                                    entidade.GetSchema()));
+
+                            if (string.IsNullOrWhiteSpace(coluna))
+                                continue;
+
+                            var sql = $@"
+                        SELECT COUNT(*)
+                        FROM `{tabela}`
+                        WHERE `{coluna}` = @usuarioId";
+
+                            await using var command =
+                                _context.Database.GetDbConnection()
+                                    .CreateCommand();
+
+                            command.CommandText = sql;
+
+                            var parameter = command.CreateParameter();
+                            parameter.ParameterName = "@usuarioId";
+                            parameter.Value = usuarioId;
+
+                            command.Parameters.Add(parameter);
+
+                            if (command.Connection!.State !=
+                                System.Data.ConnectionState.Open)
+                            {
+                                await command.Connection.OpenAsync();
+                            }
+
+                            var valor =
+                                await command.ExecuteScalarAsync();
+
+                            var quantidade =
+                                Convert.ToInt32(valor);
+
+                            if (quantidade > 0)
+                            {
+                                item.Dependencias.Add(
+                                    new DependenciaUsuarioDto
+                                    {
+                                        UsuarioId = usuarioId,
+                                        Tabela = tabela,
+                                        Coluna = coluna,
+                                        Quantidade = quantidade
+                                    });
+                            }
+                        }
+                    }
+
+                    item.TotalDependencias =
+                        item.Dependencias.Sum(d => d.Quantidade);
+
+                    resultado.Add(item);
+                }
+            }
+
+            return Ok(resultado);
+        }
+
         // ============================================================
         // DELETE: api/Funcionarios/{id}
         // ============================================================
