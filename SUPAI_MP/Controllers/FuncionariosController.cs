@@ -2496,46 +2496,87 @@ namespace supai_mp.Controllers
                     mensagem =
                         $"O nome '{nomeManter}' possui " +
                         $"{funcionariosMesmoNome.Count} registros. " +
-                        "A consolidação automática exige exatamente dois " +
-                        "registros para evitar eliminação indevida."
+                        "A consolidação exige exatamente dois registros " +
+                        "para evitar eliminação indevida."
+                });
+            }
+
+            // Garantir que os dois IDs enviados pertencem ao conjunto
+            // encontrado pelo mesmo nome.
+            if (!funcionariosMesmoNome.Any(f => f.Id == dto.IdManter) ||
+                !funcionariosMesmoNome.Any(f => f.Id == dto.IdEliminar))
+            {
+                return Conflict(new
+                {
+                    mensagem =
+                        "Os funcionários enviados não correspondem " +
+                        "aos dois registros encontrados para este nome."
                 });
             }
 
             // ============================================================
             // 5. VERIFICAR DIFERENÇAS RELEVANTES
             //
-            // Se categoria, função ou secção forem diferentes,
-            // exigimos decisão manual.
+            // Sem confirmação manual:
+            // categoria/função/secção diferentes = BLOQUEAR.
+            //
+            // Com confirmação manual:
+            // a decisão explícita do administrador é respeitada.
             // ============================================================
 
-            var mesmaCategoria = funcionarioManter.Categoria == funcionarioEliminar.Categoria;
+            var mesmaCategoria =
+                funcionarioManter.Categoria ==
+                funcionarioEliminar.Categoria;
 
-            var mesmaFuncao = string.Equals(
-                funcionarioManter.Funcao?.Trim(),
-                funcionarioEliminar.Funcao?.Trim(),
-                StringComparison.OrdinalIgnoreCase);
+            var mesmaFuncao =
+                string.Equals(
+                    funcionarioManter.Funcao?.Trim(),
+                    funcionarioEliminar.Funcao?.Trim(),
+                    StringComparison.OrdinalIgnoreCase);
 
-            var mesmaSeccao = funcionarioManter.SeccaoId == funcionarioEliminar.SeccaoId;
+            var mesmaSeccao =
+                funcionarioManter.SeccaoId ==
+                funcionarioEliminar.SeccaoId;
 
-            if ((!mesmaCategoria || !mesmaFuncao || !mesmaSeccao)
-                && !dto.ConfirmacaoManual)
+            if ((!mesmaCategoria ||
+                 !mesmaFuncao ||
+                 !mesmaSeccao) &&
+                !dto.ConfirmacaoManual)
             {
                 return Conflict(new
                 {
-                    mensagem = "Os registros possuem diferenças relevantes de categoria, função ou secção. A consolidação automática foi bloqueada e requer decisão manual.",
+                    mensagem =
+                        "Os registros possuem diferenças relevantes " +
+                        "de categoria, função ou secção. " +
+                        "A consolidação automática foi bloqueada " +
+                        "e requer decisão manual.",
+
                     idManter = dto.IdManter,
+
                     idEliminar = dto.IdEliminar,
+
                     manter = new
                     {
-                        categoria = funcionarioManter.Categoria.ToString(),
-                        funcao = funcionarioManter.Funcao,
-                        seccaoId = funcionarioManter.SeccaoId
+                        categoria =
+                            funcionarioManter.Categoria.ToString(),
+
+                        funcao =
+                            funcionarioManter.Funcao,
+
+                        seccaoId =
+                            funcionarioManter.SeccaoId
                     },
+
                     eliminar = new
                     {
-                        categoria = funcionarioEliminar.Categoria.ToString(),
-                        funcao = funcionarioEliminar.Funcao,
-                        seccaoId = funcionarioEliminar.SeccaoId
+                        categoria =
+                            funcionarioEliminar.Categoria.ToString(),
+
+                        funcao =
+                            funcionarioEliminar.Funcao,
+
+                        seccaoId =
+                            funcionarioEliminar.SeccaoId
                     }
                 });
             }
@@ -2668,21 +2709,31 @@ namespace supai_mp.Controllers
             // ============================================================
             // 8. ESCOLHER CANDIDATO A MANTER
             //
-            // PRIORIDADE:
+            // SE FOR DECISÃO MANUAL:
+            //     respeitar o ID informado pelo administrador.
             //
-            // 1. Maior número de dependências
-            // 2. Possui secção
-            // 3. Menor ID
+            // SE FOR AUTOMÁTICO:
+            //     1. Maior número de dependências
+            //     2. Possui secção
+            //     3. Menor ID
             // ============================================================
 
-            var candidatoManter =
-                funcionariosMesmoNome
-                    .OrderByDescending(f =>
-                        totalDependenciasPorFuncionario[f.Id])
-                    .ThenByDescending(f =>
-                        f.SeccaoId.HasValue)
-                    .ThenBy(f => f.Id)
+            Funcionario candidatoManter;
+
+            if (dto.ConfirmacaoManual)
+            {
+                candidatoManter = funcionarioManter;
+            }
+            else
+            {
+                candidatoManter = funcionariosMesmoNome
+                    .OrderByDescending(x =>
+                        totalDependenciasPorFuncionario[x.Id])
+                    .ThenByDescending(x =>
+                        x.SeccaoId.HasValue)
+                    .ThenBy(x => x.Id)
                     .First();
+            }
 
             // ============================================================
             // 9. VALIDAR ID INFORMADO PELO ADMINISTRADOR
@@ -2693,8 +2744,8 @@ namespace supai_mp.Controllers
                 return Conflict(new
                 {
                     mensagem =
-                        $"O ID {dto.IdManter} não corresponde ao candidato " +
-                        "atualmente definido para manutenção.",
+                        $"O ID {dto.IdManter} não corresponde ao " +
+                        "candidato atualmente definido para manutenção.",
 
                     idCandidatoManter =
                         candidatoManter.Id,
@@ -2716,9 +2767,13 @@ namespace supai_mp.Controllers
             // ============================================================
 
             var candidatoEliminar =
-                funcionariosMesmoNome
-                    .First(f =>
-                        f.Id != candidatoManter.Id);
+                candidatoManter.Id == funcionarioManter.Id
+                    ? funcionarioEliminar
+                    : funcionarioManter;
+
+            // ============================================================
+            // 11. VALIDAR ID A ELIMINAR
+            // ============================================================
 
             if (dto.IdEliminar != candidatoEliminar.Id)
             {
@@ -2737,7 +2792,7 @@ namespace supai_mp.Controllers
             }
 
             // ============================================================
-            // 11. DEPENDÊNCIAS DO REGISTRO A ELIMINAR
+            // 12. DEPENDÊNCIAS DO REGISTRO A ELIMINAR
             // ============================================================
 
             var dependenciasEliminar =
@@ -2765,8 +2820,7 @@ namespace supai_mp.Controllers
                     .ToList();
 
             // ============================================================
-            // 12. NÃO ELIMINAR AUTOMATICAMENTE SE EXISTIREM
-            //     DEPENDÊNCIAS OPERACIONAIS
+            // 13. NÃO ELIMINAR SE EXISTIREM DEPENDÊNCIAS OPERACIONAIS
             // ============================================================
 
             if (dependenciasNaoUsuario.Count > 0)
@@ -2775,7 +2829,7 @@ namespace supai_mp.Controllers
                 {
                     mensagem =
                         "O funcionário a eliminar possui dependências " +
-                        "operacionais. A consolidação automática foi bloqueada.",
+                        "operacionais. A consolidação foi bloqueada.",
 
                     idFuncionario =
                         candidatoEliminar.Id,
@@ -2790,7 +2844,7 @@ namespace supai_mp.Controllers
             }
 
             // ============================================================
-            // 13. LOCALIZAR USUARIO
+            // 14. LOCALIZAR USUARIO
             // ============================================================
 
             var entidadeUsuario =
@@ -2822,7 +2876,7 @@ namespace supai_mp.Controllers
             }
 
             // ============================================================
-            // 14. LOCALIZAR FK Usuario -> Funcionario
+            // 15. LOCALIZAR FK Usuario -> Funcionario
             // ============================================================
 
             var fkUsuario =
@@ -2862,7 +2916,7 @@ namespace supai_mp.Controllers
             }
 
             // ============================================================
-            // 15. CONTAR USUÁRIOS DO DUPLICADO
+            // 16. CONTAR USUÁRIOS DO DUPLICADO
             // ============================================================
 
             var sqlUsuarioExiste = $@"
@@ -2923,7 +2977,7 @@ namespace supai_mp.Controllers
             }
 
             // ============================================================
-            // 16. GARANTIR QUE EXISTE NO MÁXIMO UM USUÁRIO
+            // 17. GARANTIR QUE EXISTE EXATAMENTE UM USUÁRIO
             // ============================================================
 
             if (quantidadeUsuariosEliminar == 0)
@@ -2932,13 +2986,13 @@ namespace supai_mp.Controllers
                 {
                     mensagem =
                         "O funcionário duplicado não possui usuário associado. " +
-                        "A consolidação automática foi bloqueada para evitar " +
+                        "A consolidação foi bloqueada para evitar " +
                         "uma eliminação indevida."
                 });
             }
 
             // ============================================================
-            // 17. INICIAR TRANSAÇÃO
+            // 18. INICIAR TRANSAÇÃO
             // ============================================================
 
             await using var transaction =
@@ -2948,7 +3002,7 @@ namespace supai_mp.Controllers
             try
             {
                 // ========================================================
-                // 18. ELIMINAR USUARIO DO DUPLICADO
+                // 19. ELIMINAR USUARIO DO DUPLICADO
                 // ========================================================
 
                 var sqlEliminarUsuario = $@"
@@ -2992,7 +3046,7 @@ namespace supai_mp.Controllers
                 }
 
                 // ========================================================
-                // 19. ELIMINAR FUNCIONÁRIO DUPLICADO
+                // 20. ELIMINAR FUNCIONÁRIO DUPLICADO
                 // ========================================================
 
                 _context.Funcionarios.Remove(
@@ -3001,13 +3055,13 @@ namespace supai_mp.Controllers
                 await _context.SaveChangesAsync();
 
                 // ========================================================
-                // 20. CONFIRMAR TRANSAÇÃO
+                // 21. CONFIRMAR TRANSAÇÃO
                 // ========================================================
 
                 await transaction.CommitAsync();
 
                 // ========================================================
-                // 21. RESPOSTA
+                // 22. RESPOSTA
                 // ========================================================
 
                 return Ok(new
