@@ -23,5 +23,7 @@
             = new();
 
         public string Mensagem { get; set; } = string.Empty;
+
+        public bool ConfirmacaoManual { get; set; }
     }
 }
