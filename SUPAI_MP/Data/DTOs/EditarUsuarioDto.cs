@@ -2,7 +2,7 @@
 
 namespace supai_mp.Models.DTOs
 {
-    public class CriarUsuarioDto
+    public class EditarUsuarioDto
     {
         [Required(ErrorMessage = "O nome de utilizador é obrigatório.")]
         [StringLength(
@@ -11,14 +11,8 @@ namespace supai_mp.Models.DTOs
             ErrorMessage = "O nome de utilizador deve ter entre 3 e 100 caracteres.")]
         public string NomeUsuario { get; set; } = string.Empty;
 
-        [Required(ErrorMessage = "A senha é obrigatória.")]
-        [MinLength(
-            6,
-            ErrorMessage = "A senha deve ter pelo menos 6 caracteres.")]
-        public string Senha { get; set; } = string.Empty;
-
         [Required(ErrorMessage = "O perfil é obrigatório.")]
-        public string Perfil { get; set; } = "Funcionario";
+        public string Perfil { get; set; } = string.Empty;
 
         [Required(ErrorMessage = "O funcionário é obrigatório.")]
         [Range(

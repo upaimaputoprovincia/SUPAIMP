@@ -1,5 +1,7 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata;
@@ -8,7 +10,6 @@ using supai_mp.Data;
 using supai_mp.DTOs;
 using supai_mp.Models;
 using supai_mp.Models.DTOs;
-using SUPAI_MP.Data.DTOs;
 using System.Data;
 using System.Linq.Expressions;
 using System.Security.Claims;
@@ -710,77 +711,125 @@ namespace supai_mp.Controllers
         // PUT: api/Funcionarios/acessos/{id}
         // ============================================================
 
-        [Authorize(Roles = "Administrador")]
+        [Authorize(Roles = PerfisUsuario.Administrador)]
         [HttpPut("acessos/{id}")]
-        public async Task<IActionResult>
-            AtualizarAcesso(
-                int id,
-                EditarAcessoDto dto)
+        public async Task<IActionResult> AtualizarAcesso(
+            int id,
+            EditarUsuarioDto dto)
         {
-            var usuario =
-                await _context.Usuarios
-                    .FirstOrDefaultAsync(
-                        u => u.Id == id);
+            var usuario = await _context.Usuarios
+                .FirstOrDefaultAsync(u => u.Id == id);
 
             if (usuario == null)
             {
                 return NotFound(new
                 {
-                    mensagem =
-                        "Acesso não encontrado."
+                    mensagem = "Acesso não encontrado."
                 });
             }
 
-            if (string.IsNullOrWhiteSpace(
-                dto.NomeUsuario))
+            var perfil = PerfisUsuario.Todos
+                .FirstOrDefault(p =>
+                    string.Equals(
+                        p,
+                        dto.Perfil,
+                        StringComparison.OrdinalIgnoreCase));
+
+            if (perfil == null)
             {
                 return BadRequest(new
                 {
-                    mensagem =
-                        "O nome de usuário é obrigatório."
+                    mensagem = "Perfil inválido.",
+                    perfisPermitidos = PerfisUsuario.Todos
                 });
             }
 
-            var nomeExiste =
-                await _context.Usuarios.AnyAsync(
-                    u =>
-                        u.NomeUsuario ==
-                        dto.NomeUsuario &&
-                        u.Id != id);
+            var nomeUsuario = dto.NomeUsuario.Trim();
+
+            if (string.IsNullOrWhiteSpace(nomeUsuario))
+            {
+                return BadRequest(new
+                {
+                    mensagem = "O nome de utilizador é obrigatório."
+                });
+            }
+
+            var nomeExiste = await _context.Usuarios
+                .AnyAsync(u =>
+                    u.Id != id &&
+                    u.NomeUsuario == nomeUsuario);
 
             if (nomeExiste)
             {
-                return BadRequest(new
+                return Conflict(new
                 {
-                    mensagem =
-                        "O nome de usuário já está em uso."
+                    mensagem = "O nome de utilizador já está em uso."
                 });
             }
 
-            usuario.NomeUsuario =
-                dto.NomeUsuario;
+            var funcionario = await _context.Funcionarios
+                .FirstOrDefaultAsync(f =>
+                    f.Id == dto.FuncionarioId);
 
-            if (!string.IsNullOrWhiteSpace(
-                dto.Perfil))
+            if (funcionario == null)
             {
-                usuario.Perfil =
-                    dto.Perfil;
+                return NotFound(new
+                {
+                    mensagem = "Funcionário não encontrado."
+                });
             }
 
-            if (!string.IsNullOrWhiteSpace(
-                dto.NovaSenha))
+            var funcionarioJaUtilizado =
+                await _context.Usuarios
+                    .AnyAsync(u =>
+                        u.Id != id &&
+                        u.FuncionarioId == dto.FuncionarioId);
+
+            if (funcionarioJaUtilizado)
             {
-                usuario.SenhaHash =
-                    BCrypt.Net.BCrypt.HashPassword(
-                        dto.NovaSenha);
+                return Conflict(new
+                {
+                    mensagem =
+                        "Este funcionário já está associado a outro utilizador."
+                });
             }
+
+            // Não permitir retirar o perfil de Administrador
+            // do último administrador ativo.
+            if (usuario.Perfil == PerfisUsuario.Administrador &&
+                perfil != PerfisUsuario.Administrador)
+            {
+                var administradoresAtivos =
+                    await _context.Usuarios
+                        .CountAsync(u =>
+                            u.Ativo &&
+                            u.Perfil == PerfisUsuario.Administrador);
+
+                if (administradoresAtivos <= 1)
+                {
+                    return BadRequest(new
+                    {
+                        mensagem =
+                            "Não é possível retirar o perfil do último administrador ativo."
+                    });
+                }
+            }
+
+            usuario.NomeUsuario = nomeUsuario;
+            usuario.Perfil = perfil;
+            usuario.FuncionarioId = funcionario.Id;
 
             await _context.SaveChangesAsync();
 
             return Ok(new
             {
-                mensagem =
-                    "Dados de acesso atualizados com sucesso."
+                mensagem = "Dados de acesso atualizados com sucesso.",
+                id = usuario.Id,
+                nomeUsuario = usuario.NomeUsuario,
+                perfil = usuario.Perfil,
+                funcionarioId = funcionario.Id,
+                funcionario = funcionario.NomeCompleto,
+                ativo = usuario.Ativo
             });
         }
 
@@ -1154,7 +1203,7 @@ namespace supai_mp.Controllers
         public async Task<IActionResult>
             AtualizarFuncionario(
                 int id,
-                FuncionarioUpdateDto dto)
+                SUPAI_MP.Data.DTOs.FuncionarioUpdateDto dto)
         {
             var funcionario =
                 await _context.Funcionarios
@@ -1246,7 +1295,7 @@ namespace supai_mp.Controllers
         public async Task<IActionResult>
             CriarAcesso(
                 int id,
-                CriarAcessoFuncionarioDto dto)
+                CriarUsuarioDto dto)
         {
             var funcionario =
                 await _context.Funcionarios

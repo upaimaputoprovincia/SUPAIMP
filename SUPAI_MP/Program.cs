@@ -82,6 +82,20 @@ if (string.IsNullOrWhiteSpace(jwtKey))
         "Verifique a variável Jwt__Key no Railway.");
 }
 
+if (string.IsNullOrWhiteSpace(jwtIssuer))
+{
+    throw new InvalidOperationException(
+        "A variável Jwt:Issuer não foi encontrada. " +
+        "Verifique a variável Jwt__Issuer no Railway.");
+}
+
+if (string.IsNullOrWhiteSpace(jwtAudience))
+{
+    throw new InvalidOperationException(
+        "A variável Jwt:Audience não foi encontrada. " +
+        "Verifique a variável Jwt__Audience no Railway.");
+}
+
 builder.Services.AddAuthentication(
     JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
