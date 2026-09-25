@@ -861,5 +861,11 @@ namespace supai_mp.Controllers
                     funcionario.Id
             });
         }
+        [Authorize(Roles = PerfisUsuario.Administrador)]
+        [HttpGet("perfis")]
+        public IActionResult ListarPerfis()
+        {
+            return Ok(PerfisUsuario.Todos);
+        }
     }
 }
