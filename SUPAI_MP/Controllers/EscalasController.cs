@@ -183,12 +183,6 @@ namespace SUPAI_MP.Controllers
 
                 Observacao = escala.Observacao,
 
-                // ====================================================
-                // IMPORTANTE:
-                // Estes dados vêm do SNAPSHOT gravado na Escala.
-                // Não vêm da lotação atual do funcionário.
-                // ====================================================
-
                 SeccaoId = escala.SeccaoId,
                 Seccao = escala.Seccao?.Nome,
 
@@ -217,11 +211,6 @@ namespace SUPAI_MP.Controllers
         {
             var inicio = CalcularInicio(data, horaInicio);
             var fim = CalcularInicio(data, horaFim);
-
-            // Exemplo:
-            // 07:00 -> 15:00 = mesmo dia
-            // 22:00 -> 07:00 = dia seguinte
-            // 07:00 -> 07:00 = 24 horas
 
             if (fim <= inicio)
             {
@@ -302,9 +291,7 @@ namespace SUPAI_MP.Controllers
                 .Include(l => l.Funcionario)
                 .Where(l =>
                     l.FuncionarioId == funcionarioId &&
-
                     l.DataInicio.Date <= dataEscala &&
-
                     (
                         l.DataFim == null ||
                         l.DataFim.Value.Date > dataEscala
@@ -325,7 +312,6 @@ namespace SUPAI_MP.Controllers
                 .Include(e => e.TipoTurno)
                 .Include(e => e.Posto)
 
-                // Snapshot
                 .Include(e => e.Seccao)
                 .Include(e => e.UnidadeOperacional)
                 .Include(e => e.Equipa)
@@ -379,12 +365,6 @@ namespace SUPAI_MP.Controllers
                 );
             }
 
-            // ========================================================
-            // IMPORTANTE:
-            // Procuramos a lotação válida NA DATA da escala.
-            // Não usamos simplesmente Ativo = true.
-            // ========================================================
-
             var lotacao =
                 await ObterLotacaoValidaAsync(
                     dados.FuncionarioId,
@@ -414,10 +394,6 @@ namespace SUPAI_MP.Controllers
                 );
             }
 
-            // ========================================================
-            // VALIDAR TURNO DA LOTACAO
-            // ========================================================
-
             if (lotacao.TipoTurnoId.HasValue &&
                 lotacao.TipoTurnoId.Value != dados.TipoTurnoId)
             {
@@ -430,10 +406,6 @@ namespace SUPAI_MP.Controllers
                     null
                 );
             }
-
-            // ========================================================
-            // POSTO
-            // ========================================================
 
             Posto? posto = null;
 
@@ -474,10 +446,6 @@ namespace SUPAI_MP.Controllers
                 }
             }
 
-            // ========================================================
-            // HORAS
-            // ========================================================
-
             if (!HoraValida(dados.HoraInicio) ||
                 !HoraValida(dados.HoraFim))
             {
@@ -504,11 +472,6 @@ namespace SUPAI_MP.Controllers
 
             var duracao =
                 fim - inicio;
-
-            // ========================================================
-            // START == END
-            // Só é permitido quando o turno tem pelo menos 24 horas.
-            // ========================================================
 
             if (dados.HoraInicio == dados.HoraFim &&
                 turno.HorasTrabalho < 24)
@@ -561,6 +524,7 @@ namespace SUPAI_MP.Controllers
         // GET - TODAS
         // ============================================================
 
+        [Authorize(Roles = "Administrador,Gestor,Supervisor,Operador,Consultor")]
         [HttpGet]
         public async Task<ActionResult<IEnumerable<EscalaRespostaDto>>> GetEscalas()
         {
@@ -579,6 +543,7 @@ namespace SUPAI_MP.Controllers
         // GET - POR ID
         // ============================================================
 
+        [Authorize(Roles = "Administrador,Gestor,Supervisor,Operador,Consultor")]
         [HttpGet("{id:int}")]
         public async Task<ActionResult<EscalaRespostaDto>> GetEscala(int id)
         {
@@ -603,6 +568,7 @@ namespace SUPAI_MP.Controllers
         // GET - POR DATA
         // ============================================================
 
+        [Authorize(Roles = "Administrador,Gestor,Supervisor,Operador,Consultor")]
         [HttpGet("data/{data}")]
         public async Task<ActionResult<IEnumerable<EscalaRespostaDto>>> GetPorData(
             DateTime data)
@@ -625,6 +591,7 @@ namespace SUPAI_MP.Controllers
         // GET - HOJE
         // ============================================================
 
+        [Authorize(Roles = "Administrador,Gestor,Supervisor,Operador,Consultor")]
         [HttpGet("hoje")]
         public async Task<ActionResult<IEnumerable<EscalaRespostaDto>>> Hoje()
         {
@@ -646,6 +613,7 @@ namespace SUPAI_MP.Controllers
         // GET - ONTEM
         // ============================================================
 
+        [Authorize(Roles = "Administrador,Gestor,Supervisor,Operador,Consultor")]
         [HttpGet("ontem")]
         public async Task<ActionResult<IEnumerable<EscalaRespostaDto>>> Ontem()
         {
@@ -667,6 +635,7 @@ namespace SUPAI_MP.Controllers
         // GET - AMANHA
         // ============================================================
 
+        [Authorize(Roles = "Administrador,Gestor,Supervisor,Operador,Consultor")]
         [HttpGet("amanha")]
         public async Task<ActionResult<IEnumerable<EscalaRespostaDto>>> Amanha()
         {
@@ -688,6 +657,7 @@ namespace SUPAI_MP.Controllers
         // GET - POR FUNCIONARIO
         // ============================================================
 
+        [Authorize(Roles = "Administrador,Gestor,Supervisor,Operador,Consultor")]
         [HttpGet("funcionario/{funcionarioId:int}")]
         public async Task<ActionResult<IEnumerable<EscalaRespostaDto>>> GetPorFuncionario(
             int funcionarioId)
@@ -708,6 +678,7 @@ namespace SUPAI_MP.Controllers
         // GET - POR POSTO
         // ============================================================
 
+        [Authorize(Roles = "Administrador,Gestor,Supervisor,Operador,Consultor")]
         [HttpGet("posto/{postoId:int}")]
         public async Task<ActionResult<IEnumerable<EscalaRespostaDto>>> GetPorPosto(
             int postoId)
@@ -728,6 +699,7 @@ namespace SUPAI_MP.Controllers
         // GET - POR TIPO DE TURNO
         // ============================================================
 
+        [Authorize(Roles = "Administrador,Gestor,Supervisor,Operador,Consultor")]
         [HttpGet("turno/{tipoTurnoId:int}")]
         public async Task<ActionResult<IEnumerable<EscalaRespostaDto>>> GetPorTurno(
             int tipoTurnoId)
@@ -749,10 +721,20 @@ namespace SUPAI_MP.Controllers
         // ============================================================
 
         [HttpPost]
-        [Authorize(Roles = "Administrador")]
+        [Authorize(Roles = "Administrador,Gestor")]
         public async Task<ActionResult<EscalaRespostaDto>> CriarEscala(
             [FromBody] EscalaDto dados)
         {
+            if (dados == null)
+            {
+                return BadRequest(
+                    new
+                    {
+                        mensagem = "Os dados da escala são obrigatórios."
+                    }
+                );
+            }
+
             var validacao =
                 await ValidarEscalaAsync(dados);
 
@@ -771,10 +753,6 @@ namespace SUPAI_MP.Controllers
 
             var postoEfetivo =
                 dados.PostoId ?? lotacao.PostoId;
-
-            // ========================================================
-            // VERIFICAR CONFLITO
-            // ========================================================
 
             var escalasFuncionario =
                 await _context.Escalas
@@ -806,10 +784,6 @@ namespace SUPAI_MP.Controllers
                 }
             }
 
-            // ========================================================
-            // CRIAR COM SNAPSHOT
-            // ========================================================
-
             var escala = new Escala
             {
                 FuncionarioId = dados.FuncionarioId,
@@ -825,7 +799,6 @@ namespace SUPAI_MP.Controllers
 
                 Observacao = dados.Observacao,
 
-                // SNAPSHOT
                 SeccaoId = lotacao.SeccaoId,
                 UnidadeOperacionalId = lotacao.UnidadeOperacionalId,
                 EquipaId = lotacao.EquipaId,
@@ -836,7 +809,6 @@ namespace SUPAI_MP.Controllers
 
             await _context.SaveChangesAsync();
 
-            // Recarregar navegações
             escala =
                 await QueryEscalasComSnapshot()
                     .FirstAsync(e => e.Id == escala.Id);
@@ -853,11 +825,21 @@ namespace SUPAI_MP.Controllers
         // ============================================================
 
         [HttpPut("{id:int}")]
-        [Authorize(Roles = "Administrador")]
+        [Authorize(Roles = "Administrador,Gestor")]
         public async Task<IActionResult> EditarEscala(
             int id,
             [FromBody] EscalaDto dados)
         {
+            if (dados == null)
+            {
+                return BadRequest(
+                    new
+                    {
+                        mensagem = "Os dados da escala são obrigatórios."
+                    }
+                );
+            }
+
             var escala =
                 await _context.Escalas
                     .FirstOrDefaultAsync(e => e.Id == id);
@@ -871,10 +853,6 @@ namespace SUPAI_MP.Controllers
                     }
                 );
             }
-
-            // ========================================================
-            // A NOVA DATA/EMPREGADO PRECISA TER UMA LOTACAO VALIDA
-            // ========================================================
 
             var validacao =
                 await ValidarEscalaAsync(dados);
@@ -894,10 +872,6 @@ namespace SUPAI_MP.Controllers
 
             var postoEfetivo =
                 dados.PostoId ?? lotacao.PostoId;
-
-            // ========================================================
-            // VERIFICAR CONFLITOS COM OUTRAS ESCALAS
-            // ========================================================
 
             var outrasEscalas =
                 await _context.Escalas
@@ -927,14 +901,6 @@ namespace SUPAI_MP.Controllers
                 }
             }
 
-            // ========================================================
-            // ATUALIZAR ESCALA
-            //
-            // Como Escala é um SNAPSHOT, se alterarmos funcionário,
-            // data, unidade, equipa ou função, atualizamos também
-            // o snapshot.
-            // ========================================================
-
             escala.FuncionarioId = dados.FuncionarioId;
 
             escala.Data = dados.Data.Date;
@@ -948,7 +914,6 @@ namespace SUPAI_MP.Controllers
 
             escala.Observacao = dados.Observacao;
 
-            // SNAPSHOT
             escala.SeccaoId = lotacao.SeccaoId;
             escala.UnidadeOperacionalId = lotacao.UnidadeOperacionalId;
             escala.EquipaId = lotacao.EquipaId;
@@ -970,7 +935,7 @@ namespace SUPAI_MP.Controllers
         // ============================================================
 
         [HttpDelete("{id:int}")]
-        [Authorize(Roles = "Administrador")]
+        [Authorize(Roles = "Administrador,Gestor")]
         public async Task<IActionResult> EliminarEscala(int id)
         {
             var escala =
@@ -1004,11 +969,21 @@ namespace SUPAI_MP.Controllers
         // ============================================================
 
         [HttpPost("gerar-automatica")]
-        [Authorize(Roles = "Administrador")]
+        [Authorize(Roles = "Administrador,Gestor")]
         public async Task<ActionResult<GerarEscalaResultadoDto>>
             GerarEscalaAutomatica(
                 [FromBody] GerarEscalaDto dados)
         {
+            if (dados == null)
+            {
+                return BadRequest(
+                    new
+                    {
+                        mensagem = "Os dados para geração da escala são obrigatórios."
+                    }
+                );
+            }
+
             try
             {
                 // ========================================================
@@ -1087,9 +1062,6 @@ namespace SUPAI_MP.Controllers
 
                 // ========================================================
                 // VALIDAR ORDENS DE ROTACAO
-                //
-                // Devemos ter:
-                // 1, 2, 3...
                 // ========================================================
 
                 for (int i = 0; i < grupos.Count; i++)
@@ -1111,14 +1083,6 @@ namespace SUPAI_MP.Controllers
 
                 // ========================================================
                 // GRUPO DE REFERENCIA
-                //
-                // Exemplo Escolta C:
-                //
-                // 09/07 = Charlie ordem 1
-                // 09/08 = Alfa    ordem 2
-                // 09/09 = Beta    ordem 3
-                // 09/10 = Charlie ordem 1
-                //
                 // ========================================================
 
                 var grupoReferencia =
@@ -1243,16 +1207,6 @@ namespace SUPAI_MP.Controllers
 
                 // ========================================================
                 // LOTACOES VALIDAS NA DATA DA ESCALA
-                //
-                // ESTA É UMA CORREÇÃO MUITO IMPORTANTE.
-                //
-                // Não usamos:
-                //
-                //     l.Ativo
-                //
-                // Porque uma lotação antiga pode estar inativa hoje,
-                // mas ter sido perfeitamente válida na data histórica
-                // da escala.
                 // ========================================================
 
                 var lotacoes =
@@ -1462,10 +1416,7 @@ namespace SUPAI_MP.Controllers
                         lotacao.PostoId;
 
                     // ====================================================
-                    // 1. PRIMEIRO: VERIFICAR DUPLICADO EXATO
-                    //
-                    // Se a mesma geração for executada novamente,
-                    // não devemos chamar isso de conflito.
+                    // 1. VERIFICAR DUPLICADO EXATO
                     // ====================================================
 
                     var escalaIgual =
@@ -1492,7 +1443,7 @@ namespace SUPAI_MP.Controllers
                     }
 
                     // ====================================================
-                    // 2. DEPOIS: VERIFICAR CONFLITO
+                    // 2. VERIFICAR CONFLITO
                     // ====================================================
 
                     var conflito =
@@ -1520,8 +1471,6 @@ namespace SUPAI_MP.Controllers
 
                     // ====================================================
                     // 3. CRIAR ESCALA
-                    //
-                    // Guardamos o snapshot da lotação.
                     // ====================================================
 
                     var novaEscala =
@@ -1548,7 +1497,6 @@ namespace SUPAI_MP.Controllers
                             Observacao =
                                 dados.Observacao,
 
-                            // SNAPSHOT
                             SeccaoId =
                                 lotacao.SeccaoId,
 
@@ -1564,9 +1512,6 @@ namespace SUPAI_MP.Controllers
 
                     _context.Escalas.Add(novaEscala);
 
-                    // Adicionar imediatamente à lista para impedir
-                    // que outro funcionário/iteração gere duplicação
-                    // dentro da mesma operação.
                     escalasExistentes.Add(novaEscala);
 
                     resultado.EscalasCriadas++;
@@ -1612,12 +1557,13 @@ namespace SUPAI_MP.Controllers
                     tipo = ex.GetType().FullName,
                     mensagem = ex.Message,
                     innerException = ex.InnerException?.Message,
-                    innerException2 = ex.InnerException?.InnerException?.Message,
+                    innerException2 =
+                        ex.InnerException?.InnerException?.Message,
                     stackTrace = ex.StackTrace
                 });
             }
-
         }
+
         // ============================================================
         // DIAGNÓSTICO TEMPORÁRIO DA ESTRUTURA DE ESCALAS
         // REMOVER DEPOIS DA REPARAÇÃO DA BASE DE DADOS
@@ -1627,68 +1573,75 @@ namespace SUPAI_MP.Controllers
         [Authorize(Roles = "Administrador")]
         public async Task<IActionResult> DiagnosticoBanco()
         {
-            var totalEscalas = await _context.Escalas.CountAsync();
+            var totalEscalas =
+                await _context.Escalas.CountAsync();
 
-            var funcoes = await _context.FuncoesOperacionais
-                .OrderBy(f => f.Id)
-                .Select(f => new
-                {
-                    f.Id,
-                    f.Nome,
-                    f.Ativo
-                })
-                .ToListAsync();
+            var funcoes =
+                await _context.FuncoesOperacionais
+                    .OrderBy(f => f.Id)
+                    .Select(f => new
+                    {
+                        f.Id,
+                        f.Nome,
+                        f.Ativo
+                    })
+                    .ToListAsync();
 
-            var escalas = await _context.Escalas
-                .OrderBy(e => e.Id)
-                .Select(e => new
-                {
-                    e.Id,
-                    e.FuncionarioId,
-                    e.Data,
-                    e.FuncaoOperacionalId,
-                    e.EquipaId,
-                    e.SeccaoId,
-                    e.UnidadeOperacionalId
-                })
-                .ToListAsync();
+            var escalas =
+                await _context.Escalas
+                    .OrderBy(e => e.Id)
+                    .Select(e => new
+                    {
+                        e.Id,
+                        e.FuncionarioId,
+                        e.Data,
+                        e.FuncaoOperacionalId,
+                        e.EquipaId,
+                        e.SeccaoId,
+                        e.UnidadeOperacionalId
+                    })
+                    .ToListAsync();
 
-            var funcoesUsadas = escalas
-                .GroupBy(e => e.FuncaoOperacionalId)
-                .Select(g => new
-                {
-                    FuncaoOperacionalId = g.Key,
-                    Quantidade = g.Count()
-                })
-                .OrderBy(x => x.FuncaoOperacionalId)
-                .ToList();
+            var funcoesUsadas =
+                escalas
+                    .GroupBy(e => e.FuncaoOperacionalId)
+                    .Select(g => new
+                    {
+                        FuncaoOperacionalId = g.Key,
+                        Quantidade = g.Count()
+                    })
+                    .OrderBy(x => x.FuncaoOperacionalId)
+                    .ToList();
 
-            var funcoesInvalidas = escalas
-                .Where(e =>
-                    e.FuncaoOperacionalId <= 0 ||
-                    !funcoes.Any(f => f.Id == e.FuncaoOperacionalId))
-                .Select(e => new
-                {
-                    e.Id,
-                    e.FuncionarioId,
-                    e.Data,
-                    e.FuncaoOperacionalId
-                })
-                .ToList();
+            var funcoesInvalidas =
+                escalas
+                    .Where(e =>
+                        e.FuncaoOperacionalId <= 0 ||
+                        !funcoes.Any(f =>
+                            f.Id == e.FuncaoOperacionalId))
+                    .Select(e => new
+                    {
+                        e.Id,
+                        e.FuncionarioId,
+                        e.Data,
+                        e.FuncaoOperacionalId
+                    })
+                    .ToList();
 
-            var lotacoes = await _context.LotacoesFuncionarios
-                .Where(l => l.Ativo)
-                .OrderBy(l => l.FuncionarioId)
-                .Select(l => new
-                {
-                    l.Id,
-                    l.FuncionarioId,
-                    l.FuncaoOperacionalId,
-                    l.DataInicio,
-                    l.DataFim,
-                    l.Ativo
-                })
-                .ToListAsync();
+            var lotacoes =
+                await _context.LotacoesFuncionarios
+                    .Where(l => l.Ativo)
+                    .OrderBy(l => l.FuncionarioId)
+                    .Select(l => new
+                    {
+                        l.Id,
+                        l.FuncionarioId,
+                        l.FuncaoOperacionalId,
+                        l.DataInicio,
+                        l.DataFim,
+                        l.Ativo
+                    })
+                    .ToListAsync();
 
             return Ok(new
             {

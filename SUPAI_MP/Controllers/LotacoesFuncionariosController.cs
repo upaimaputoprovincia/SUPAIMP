@@ -874,7 +874,7 @@ namespace supai_mp.Controllers
         // POST — CRIAR NOVA LOTAÇÃO
         // ============================================================
         [HttpPost]
-        [Authorize(Roles = "Administrador")]
+        [Authorize(Roles = "Administrador,Gestor")]
         public async Task<ActionResult<LotacaoFuncionarioRespostaDto>>
             Criar(LotacaoFuncionarioDto dto)
         {
@@ -1174,7 +1174,7 @@ namespace supai_mp.Controllers
         // PUT — EDITAR LOTAÇÃO
         // ============================================================
         [HttpPut("{id:int}")]
-        [Authorize(Roles = "Administrador")]
+        [Authorize(Roles = "Administrador,Gestor")]
         public async Task<ActionResult<LotacaoFuncionarioRespostaDto>>
             Editar(
                 int id,
@@ -1469,7 +1469,7 @@ namespace supai_mp.Controllers
         // POST — TRANSFERIR FUNCIONÁRIO
         // ============================================================
         [HttpPost("funcionario/{funcionarioId:int}/transferir")]
-        [Authorize(Roles = "Administrador")]
+        [Authorize(Roles = "Administrador,Gestor,TecnicoPO")]
         public async Task<ActionResult<LotacaoFuncionarioRespostaDto>>
             Transferir(
                 int funcionarioId,
@@ -1802,7 +1802,7 @@ namespace supai_mp.Controllers
         // PATCH — ENCERRAR LOTAÇÃO
         // ============================================================
         [HttpPatch("{id:int}/encerrar")]
-        [Authorize(Roles = "Administrador")]
+        [Authorize(Roles = "Administrador,Gestor")]
         public async Task<IActionResult> Encerrar(int id)
         {
             var lotacao = await _context.LotacoesFuncionarios

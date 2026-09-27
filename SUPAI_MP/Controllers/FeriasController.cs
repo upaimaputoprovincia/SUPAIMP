@@ -11,6 +11,7 @@ namespace supai_mp.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
+    [Authorize]
     public class FeriasController : ControllerBase
     {
         private readonly ApplicationDbContext _context;
@@ -26,8 +27,18 @@ namespace supai_mp.Controllers
         // =========================================================
         [Authorize(Roles = "Funcionario")]
         [HttpPost("minhas")]
-        public async Task<IActionResult> SolicitarFerias(CriarFeriasDto dto)
+        public async Task<IActionResult> SolicitarFerias(
+            [FromBody] CriarFeriasDto dto)
         {
+            if (dto == null)
+                return BadRequest("Os dados das férias são obrigatórios.");
+
+            if (dto.Ano < 2000 || dto.Ano > 2100)
+                return BadRequest("O ano informado não é válido.");
+
+            if (dto.Mes < 1 || dto.Mes > 12)
+                return BadRequest("O mês informado deve estar entre 1 e 12.");
+
             var usuarioId = ObterUsuarioId();
 
             if (usuarioId == null)
@@ -35,7 +46,7 @@ namespace supai_mp.Controllers
 
             var usuario = await _context.Usuarios
                 .Include(u => u.Funcionario)
-                .FirstOrDefaultAsync(u => u.Id == usuarioId);
+                .FirstOrDefaultAsync(u => u.Id == usuarioId.Value);
 
             if (usuario == null)
                 return NotFound("Utilizador não encontrado.");
@@ -44,21 +55,26 @@ namespace supai_mp.Controllers
                 return Unauthorized("Este utilizador está inativo.");
 
             if (usuario.Funcionario == null)
-                return NotFound("Este utilizador não está associado a um funcionário.");
+                return NotFound(
+                    "Este utilizador não está associado a um funcionário.");
 
             var funcionarioId = usuario.Funcionario.Id;
 
-            var existe = await _context.Ferias.AnyAsync(f =>
-                f.FuncionarioId == funcionarioId &&
-                f.Ano == dto.Ano &&
-                f.Mes == dto.Mes &&
-                f.Estado != EstadoFerias.Cancelada);
+            // Verificar se já existe férias para o mesmo funcionário,
+            // ano e mês, excluindo registos cancelados.
+            var existe = await _context.Ferias
+                .AnyAsync(f =>
+                    f.FuncionarioId == funcionarioId &&
+                    f.Ano == dto.Ano &&
+                    f.Mes == dto.Mes &&
+                    f.Estado != EstadoFerias.Cancelada);
 
             if (existe)
             {
                 return BadRequest(new
                 {
-                    mensagem = "Já existe um registo de férias para este funcionário neste ano e mês."
+                    mensagem =
+                        "Já existe um registo de férias para este funcionário neste ano e mês."
                 });
             }
 
@@ -73,19 +89,19 @@ namespace supai_mp.Controllers
             };
 
             _context.Ferias.Add(ferias);
+
             await _context.SaveChangesAsync();
 
             return StatusCode(201, new
             {
                 mensagem = "Férias solicitadas com sucesso.",
                 feriasId = ferias.Id,
+                funcionarioId = ferias.FuncionarioId,
                 ano = ferias.Ano,
                 mes = ferias.Mes,
                 estado = ferias.Estado.ToString()
             });
         }
-
-       
 
         // =========================================================
         // GET: api/Ferias/minhas
@@ -102,7 +118,7 @@ namespace supai_mp.Controllers
 
             var usuario = await _context.Usuarios
                 .Include(u => u.Funcionario)
-                .FirstOrDefaultAsync(u => u.Id == usuarioId);
+                .FirstOrDefaultAsync(u => u.Id == usuarioId.Value);
 
             if (usuario == null)
                 return NotFound("Utilizador não encontrado.");
@@ -111,30 +127,33 @@ namespace supai_mp.Controllers
                 return Unauthorized("Este utilizador está inativo.");
 
             if (usuario.Funcionario == null)
+            {
                 return NotFound(
                     "Este utilizador não está associado a um funcionário.");
+            }
 
             var funcionarioId = usuario.Funcionario.Id;
 
-            // Buscar os registos sem fazer cálculos de DateTime dentro do SQL
+            // Buscar os registos primeiro.
+            // Os cálculos de DateTime são feitos depois de sair da BD.
             var ferias = await _context.Ferias
                 .Where(f => f.FuncionarioId == funcionarioId)
                 .OrderByDescending(f => f.Ano)
                 .ThenByDescending(f => f.Mes)
                 .ToListAsync();
 
-            // Transformar os dados em objetos simples depois de sair da BD
             var resultado = ferias.Select(f => new
             {
                 id = f.Id,
                 funcionarioId = f.FuncionarioId,
+
                 nomeCompleto = usuario.Funcionario.NomeCompleto,
                 nip = usuario.Funcionario.Nip,
 
                 ano = f.Ano,
                 mes = f.Mes,
 
-                mesNome = System.Globalization.CultureInfo.CurrentCulture
+                mesNome = CultureInfo.CurrentCulture
                     .DateTimeFormat
                     .GetMonthName(f.Mes),
 
@@ -142,9 +161,10 @@ namespace supai_mp.Controllers
                 dataFim = f.DataFim,
 
                 quantidadeDias =
-                    f.DataInicio.HasValue && f.DataFim.HasValue
+                    f.DataInicio.HasValue &&
+                    f.DataFim.HasValue
                         ? (int?)(f.DataFim.Value.Date -
-                                  f.DataInicio.Value.Date).Days + 1
+                                 f.DataInicio.Value.Date).Days + 1
                         : null,
 
                 estado = f.Estado.ToString(),
@@ -159,13 +179,11 @@ namespace supai_mp.Controllers
             return Ok(resultado);
         }
 
-
-
         // =========================================================
         // GET: api/Ferias
-        // Administrador consulta todas as férias
+        // Administrador/Gestor consulta todas as férias
         // =========================================================
-        [Authorize(Roles = "Administrador")]
+        [Authorize(Roles = "Administrador,Gestor")]
         [HttpGet]
         public async Task<IActionResult> ListarFerias()
         {
@@ -208,14 +226,17 @@ namespace supai_mp.Controllers
 
         // =========================================================
         // PUT: api/Ferias/{id}/iniciar
-        // Administrador inicia as férias
+        // Administrador/Gestor inicia as férias
         // =========================================================
-        [Authorize(Roles = "Administrador")]
+        [Authorize(Roles = "Administrador,Gestor")]
         [HttpPut("{id}/iniciar")]
         public async Task<IActionResult> IniciarFerias(
             int id,
             [FromBody] IniciarFeriasDto dto)
         {
+            if (dto == null)
+                return BadRequest("Os dados para iniciar as férias são obrigatórios.");
+
             var ferias = await _context.Ferias
                 .Include(f => f.Funcionario)
                 .FirstOrDefaultAsync(f => f.Id == id);
@@ -224,16 +245,20 @@ namespace supai_mp.Controllers
                 return NotFound("Registo de férias não encontrado.");
 
             if (ferias.Estado == EstadoFerias.Cancelada)
-                return BadRequest("Não é possível iniciar férias canceladas.");
+                return BadRequest(
+                    "Não é possível iniciar férias canceladas.");
 
             if (ferias.Estado == EstadoFerias.EmGozo)
-                return BadRequest("Estas férias já estão em gozo.");
+                return BadRequest(
+                    "Estas férias já estão em gozo.");
 
             if (ferias.Estado == EstadoFerias.Gozada)
-                return BadRequest("Estas férias já foram finalizadas.");
+                return BadRequest(
+                    "Estas férias já foram finalizadas.");
 
             if (dto.DataInicio == default)
-                return BadRequest("Informe a data de início das férias.");
+                return BadRequest(
+                    "Informe a data de início das férias.");
 
             ferias.DataInicio = dto.DataInicio;
             ferias.DataRegistoInicio = DateTime.Now;
@@ -253,14 +278,18 @@ namespace supai_mp.Controllers
 
         // =========================================================
         // PUT: api/Ferias/{id}/finalizar
-        // Administrador finaliza as férias
+        // Administrador/Gestor finaliza as férias
         // =========================================================
-        [Authorize(Roles = "Administrador")]
+        [Authorize(Roles = "Administrador,Gestor")]
         [HttpPut("{id}/finalizar")]
         public async Task<IActionResult> FinalizarFerias(
             int id,
             [FromBody] FinalizarFeriasDto dto)
         {
+            if (dto == null)
+                return BadRequest(
+                    "Os dados para finalizar as férias são obrigatórios.");
+
             var ferias = await _context.Ferias
                 .Include(f => f.Funcionario)
                 .FirstOrDefaultAsync(f => f.Id == id);
@@ -269,16 +298,20 @@ namespace supai_mp.Controllers
                 return NotFound("Registo de férias não encontrado.");
 
             if (ferias.Estado == EstadoFerias.Programada)
-                return BadRequest("Estas férias ainda não foram iniciadas.");
+                return BadRequest(
+                    "Estas férias ainda não foram iniciadas.");
 
             if (ferias.Estado == EstadoFerias.Gozada)
-                return BadRequest("Estas férias já foram finalizadas.");
+                return BadRequest(
+                    "Estas férias já foram finalizadas.");
 
             if (ferias.Estado == EstadoFerias.Cancelada)
-                return BadRequest("Não é possível finalizar férias canceladas.");
+                return BadRequest(
+                    "Não é possível finalizar férias canceladas.");
 
             if (dto.DataFim == default)
-                return BadRequest("Informe a data de fim das férias.");
+                return BadRequest(
+                    "Informe a data de fim das férias.");
 
             if (ferias.DataInicio.HasValue &&
                 dto.DataFim < ferias.DataInicio.Value)
@@ -305,7 +338,7 @@ namespace supai_mp.Controllers
         }
 
         // =========================================================
-        // Método auxiliar
+        // MÉTODO AUXILIAR
         // Obtém o ID do utilizador autenticado
         // =========================================================
         private int? ObterUsuarioId()
@@ -318,4 +351,3 @@ namespace supai_mp.Controllers
         }
     }
 }
-

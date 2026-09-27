@@ -98,6 +98,7 @@ namespace supai_mp.Controllers
 
         // ============================================================
         // GET: api/Equipas
+        // LEITURA: qualquer utilizador autenticado
         // ============================================================
 
         [HttpGet]
@@ -116,6 +117,7 @@ namespace supai_mp.Controllers
                     Nome = e.Nome,
 
                     SectorId = e.SectorId,
+
                     Sector = e.Sector != null
                         ? e.Sector.Nome
                         : null,
@@ -150,6 +152,7 @@ namespace supai_mp.Controllers
 
         // ============================================================
         // GET: api/Equipas/5
+        // LEITURA: qualquer utilizador autenticado
         // ============================================================
 
         [HttpGet("{id:int}")]
@@ -260,6 +263,7 @@ namespace supai_mp.Controllers
 
         // ============================================================
         // GET: api/Equipas/unidade/5
+        // LEITURA: qualquer utilizador autenticado
         // ============================================================
 
         [HttpGet("unidade/{unidadeOperacionalId:int}")]
@@ -328,6 +332,7 @@ namespace supai_mp.Controllers
 
         // ============================================================
         // GET: api/Equipas/sector/5
+        // LEITURA: qualquer utilizador autenticado
         // ============================================================
 
         [HttpGet("sector/{sectorId:int}")]
@@ -393,6 +398,7 @@ namespace supai_mp.Controllers
 
         // ============================================================
         // POST: api/Equipas
+        // ADMINISTRADOR
         // ============================================================
 
         [HttpPost]
@@ -400,6 +406,14 @@ namespace supai_mp.Controllers
         public async Task<ActionResult<EquipaListaDto>> CriarEquipa(
             Equipa dados)
         {
+            if (dados == null)
+            {
+                return BadRequest(new
+                {
+                    mensagem = "Os dados da equipa são obrigatórios."
+                });
+            }
+
             if (string.IsNullOrWhiteSpace(dados.Nome))
             {
                 return BadRequest(new
@@ -499,11 +513,17 @@ namespace supai_mp.Controllers
             var novaEquipa = new Equipa
             {
                 Nome = nome,
+
                 SectorId = dados.SectorId,
+
                 UnidadeOperacionalId =
                     dados.UnidadeOperacionalId,
-                Descricao = dados.Descricao?.Trim(),
+
+                Descricao =
+                    dados.Descricao?.Trim(),
+
                 Ativo = true,
+
                 DataCadastro = DateTime.Now
             };
 
@@ -530,6 +550,7 @@ namespace supai_mp.Controllers
 
         // ============================================================
         // PUT: api/Equipas/5
+        // ADMINISTRADOR
         // ============================================================
 
         [HttpPut("{id:int}")]
@@ -538,6 +559,14 @@ namespace supai_mp.Controllers
             int id,
             Equipa dados)
         {
+            if (dados == null)
+            {
+                return BadRequest(new
+                {
+                    mensagem = "Os dados da equipa são obrigatórios."
+                });
+            }
+
             var equipa = await _context.Equipas
                 .FirstOrDefaultAsync(e => e.Id == id);
 
@@ -647,9 +676,13 @@ namespace supai_mp.Controllers
             }
 
             equipa.Nome = nome;
-            equipa.SectorId = dados.SectorId;
+
+            equipa.SectorId =
+                dados.SectorId;
+
             equipa.UnidadeOperacionalId =
                 dados.UnidadeOperacionalId;
+
             equipa.Descricao =
                 dados.Descricao?.Trim();
 
@@ -659,18 +692,28 @@ namespace supai_mp.Controllers
             {
                 mensagem =
                     "Equipa actualizada com sucesso.",
+
                 id = equipa.Id,
+
                 nome = equipa.Nome,
-                sectorId = equipa.SectorId,
+
+                sectorId =
+                    equipa.SectorId,
+
                 unidadeOperacionalId =
                     equipa.UnidadeOperacionalId,
-                descricao = equipa.Descricao,
-                ativo = equipa.Ativo
+
+                descricao =
+                    equipa.Descricao,
+
+                ativo =
+                    equipa.Ativo
             });
         }
 
         // ============================================================
         // PATCH: api/Equipas/5/estado
+        // ADMINISTRADOR
         // ============================================================
 
         [HttpPatch("{id:int}/estado")]
@@ -701,13 +744,16 @@ namespace supai_mp.Controllers
                     : "Equipa desactivada com sucesso.",
 
                 id = equipa.Id,
+
                 nome = equipa.Nome,
+
                 ativo = equipa.Ativo
             });
         }
 
         // ============================================================
         // DELETE: api/Equipas/5
+        // ADMINISTRADOR
         // ============================================================
 
         [HttpDelete("{id:int}")]
@@ -735,8 +781,11 @@ namespace supai_mp.Controllers
             {
                 mensagem =
                     "Equipa desactivada com sucesso.",
+
                 id = equipa.Id,
+
                 nome = equipa.Nome,
+
                 ativo = equipa.Ativo
             });
         }

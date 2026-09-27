@@ -28,26 +28,55 @@ namespace supai_mp.Controllers
 
         // =========================================================
         // LOGIN
+        // PÚBLICO
         // =========================================================
 
         [AllowAnonymous]
         [HttpPost("login")]
-        public async Task<IActionResult> Login(LoginDto dto)
+        public async Task<IActionResult> Login(
+            LoginDto dto)
         {
-            var usuario = await _context.Usuarios
-                .Include(u => u.Funcionario)
-                .FirstOrDefaultAsync(u =>
-                    u.NomeUsuario == dto.NomeUsuario);
+            if (dto == null)
+            {
+                return BadRequest(
+                    "Os dados de login são obrigatórios.");
+            }
+
+            if (string.IsNullOrWhiteSpace(dto.NomeUsuario) ||
+                string.IsNullOrWhiteSpace(dto.Senha))
+            {
+                return BadRequest(
+                    "Nome de utilizador e senha são obrigatórios.");
+            }
+
+            var nomeUsuario =
+                dto.NomeUsuario.Trim();
+
+            var usuario =
+                await _context.Usuarios
+                    .Include(u => u.Funcionario)
+                    .FirstOrDefaultAsync(u =>
+                        u.NomeUsuario == nomeUsuario);
 
             if (usuario == null)
             {
-                return Unauthorized("Utilizador ou senha inválidos.");
+                return Unauthorized(
+                    "Utilizador ou senha inválidos.");
             }
+
+            // ---------------------------------------------------------
+            // Utilizador desativado
+            // ---------------------------------------------------------
 
             if (!usuario.Ativo)
             {
-                return Unauthorized("Este utilizador está desativado.");
+                return Unauthorized(
+                    "Este utilizador está desativado.");
             }
+
+            // ---------------------------------------------------------
+            // Utilizador precisa estar associado a funcionário
+            // ---------------------------------------------------------
 
             if (usuario.Funcionario == null)
             {
@@ -55,29 +84,49 @@ namespace supai_mp.Controllers
                     "Este utilizador não está associado a um funcionário.");
             }
 
-            bool senhaValida = BCrypt.Net.BCrypt.Verify(
-                dto.Senha,
-                usuario.SenhaHash);
+            // ---------------------------------------------------------
+            // Validar senha
+            // ---------------------------------------------------------
+
+            bool senhaValida =
+                BCrypt.Net.BCrypt.Verify(
+                    dto.Senha,
+                    usuario.SenhaHash);
 
             if (!senhaValida)
             {
-                return Unauthorized("Utilizador ou senha inválidos.");
+                return Unauthorized(
+                    "Utilizador ou senha inválidos.");
             }
 
-            var token = GerarToken(usuario);
+            // ---------------------------------------------------------
+            // Gerar JWT
+            // ---------------------------------------------------------
+
+            var token =
+                GerarToken(usuario);
 
             return Ok(new
             {
                 token = token,
-                usuario = usuario.NomeUsuario,
-                perfil = usuario.Perfil,
-                funcionarioId = usuario.FuncionarioId,
-                funcionario = usuario.Funcionario.NomeCompleto
+
+                usuario =
+                    usuario.NomeUsuario,
+
+                perfil =
+                    usuario.Perfil,
+
+                funcionarioId =
+                    usuario.FuncionarioId,
+
+                funcionario =
+                    usuario.Funcionario.NomeCompleto
             });
         }
 
         // =========================================================
         // ALTERAR MINHA SENHA
+        // QUALQUER UTILIZADOR AUTENTICADO
         // =========================================================
 
         [Authorize]
@@ -85,26 +134,53 @@ namespace supai_mp.Controllers
         public async Task<IActionResult> AlterarMinhaSenha(
             AlterarSenhaDto dto)
         {
+            if (dto == null)
+            {
+                return BadRequest(
+                    "Os dados para alteração da senha são obrigatórios.");
+            }
+
             var usuarioIdString =
-                User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                User.FindFirst(
+                    ClaimTypes.NameIdentifier)?.Value;
 
             if (string.IsNullOrWhiteSpace(usuarioIdString) ||
-                !int.TryParse(usuarioIdString, out int usuarioId))
+                !int.TryParse(
+                    usuarioIdString,
+                    out int usuarioId))
             {
                 return Unauthorized();
             }
 
-            var usuario = await _context.Usuarios
-                .FirstOrDefaultAsync(u => u.Id == usuarioId);
+            var usuario =
+                await _context.Usuarios
+                    .FirstOrDefaultAsync(
+                        u => u.Id == usuarioId);
 
             if (usuario == null)
             {
-                return NotFound("Utilizador não encontrado.");
+                return NotFound(
+                    "Utilizador não encontrado.");
             }
 
-            bool senhaCorreta = BCrypt.Net.BCrypt.Verify(
-                dto.SenhaAtual,
-                usuario.SenhaHash);
+            // ---------------------------------------------------------
+            // Garantir que a conta continua ativa
+            // ---------------------------------------------------------
+
+            if (!usuario.Ativo)
+            {
+                return Unauthorized(
+                    "Este utilizador está desativado.");
+            }
+
+            // ---------------------------------------------------------
+            // Validar senha atual
+            // ---------------------------------------------------------
+
+            bool senhaCorreta =
+                BCrypt.Net.BCrypt.Verify(
+                    dto.SenhaAtual,
+                    usuario.SenhaHash);
 
             if (!senhaCorreta)
             {
@@ -112,106 +188,156 @@ namespace supai_mp.Controllers
                     "A senha atual está incorreta.");
             }
 
-            if (dto.NovaSenha != dto.ConfirmarNovaSenha)
+            // ---------------------------------------------------------
+            // Confirmar nova senha
+            // ---------------------------------------------------------
+
+            if (dto.NovaSenha !=
+                dto.ConfirmarNovaSenha)
             {
                 return BadRequest(
                     "A confirmação da nova senha não corresponde.");
             }
 
+            // ---------------------------------------------------------
+            // Impedir reutilização da senha atual
+            // ---------------------------------------------------------
+
             if (BCrypt.Net.BCrypt.Verify(
-                dto.NovaSenha,
-                usuario.SenhaHash))
+                    dto.NovaSenha,
+                    usuario.SenhaHash))
             {
                 return BadRequest(
                     "A nova senha deve ser diferente da senha atual.");
             }
 
             usuario.SenhaHash =
-                BCrypt.Net.BCrypt.HashPassword(dto.NovaSenha);
+                BCrypt.Net.BCrypt.HashPassword(
+                    dto.NovaSenha);
 
             await _context.SaveChangesAsync();
 
             return Ok(new
             {
-                mensagem = "Senha alterada com sucesso."
+                mensagem =
+                    "Senha alterada com sucesso."
             });
         }
 
         // =========================================================
         // LISTAR UTILIZADORES
+        // ADMINISTRADOR
         // =========================================================
 
         [Authorize(Roles = PerfisUsuario.Administrador)]
         [HttpGet("utilizadores")]
         public async Task<IActionResult> ListarUtilizadores()
         {
-            var utilizadores = await _context.Usuarios
-                .Include(u => u.Funcionario)
-                .OrderBy(u => u.NomeUsuario)
-                .Select(u => new
-                {
-                    id = u.Id,
-                    nomeUsuario = u.NomeUsuario,
-                    perfil = u.Perfil,
-                    ativo = u.Ativo,
-                    dataCadastro = u.DataCadastro,
+            var utilizadores =
+                await _context.Usuarios
+                    .Include(u => u.Funcionario)
+                    .OrderBy(u => u.NomeUsuario)
+                    .Select(u => new
+                    {
+                        id = u.Id,
 
-                    funcionarioId = u.FuncionarioId,
+                        nomeUsuario =
+                            u.NomeUsuario,
 
-                    funcionario = u.Funcionario == null
-                        ? null
-                        : new
-                        {
-                            id = u.Funcionario.Id,
-                            nomeCompleto = u.Funcionario.NomeCompleto,
-                            nip = u.Funcionario.Nip
-                        }
-                })
-                .ToListAsync();
+                        perfil =
+                            u.Perfil,
+
+                        ativo =
+                            u.Ativo,
+
+                        dataCadastro =
+                            u.DataCadastro,
+
+                        funcionarioId =
+                            u.FuncionarioId,
+
+                        funcionario =
+                            u.Funcionario == null
+                                ? null
+                                : new
+                                {
+                                    id =
+                                        u.Funcionario.Id,
+
+                                    nomeCompleto =
+                                        u.Funcionario.NomeCompleto,
+
+                                    nip =
+                                        u.Funcionario.Nip
+                                }
+                    })
+                    .ToListAsync();
 
             return Ok(utilizadores);
         }
 
         // =========================================================
         // OBTER UTILIZADOR POR ID
+        // ADMINISTRADOR
         // =========================================================
 
         [Authorize(Roles = PerfisUsuario.Administrador)]
         [HttpGet("utilizadores/{id:int}")]
-        public async Task<IActionResult> ObterUtilizador(int id)
+        public async Task<IActionResult> ObterUtilizador(
+            int id)
         {
-            var usuario = await _context.Usuarios
-                .Include(u => u.Funcionario)
-                .FirstOrDefaultAsync(u => u.Id == id);
+            var usuario =
+                await _context.Usuarios
+                    .Include(u => u.Funcionario)
+                    .FirstOrDefaultAsync(
+                        u => u.Id == id);
 
             if (usuario == null)
             {
-                return NotFound("Utilizador não encontrado.");
+                return NotFound(
+                    "Utilizador não encontrado.");
             }
 
             return Ok(new
             {
-                id = usuario.Id,
-                nomeUsuario = usuario.NomeUsuario,
-                perfil = usuario.Perfil,
-                ativo = usuario.Ativo,
-                dataCadastro = usuario.DataCadastro,
+                id =
+                    usuario.Id,
 
-                funcionarioId = usuario.FuncionarioId,
+                nomeUsuario =
+                    usuario.NomeUsuario,
 
-                funcionario = usuario.Funcionario == null
-                    ? null
-                    : new
-                    {
-                        id = usuario.Funcionario.Id,
-                        nomeCompleto = usuario.Funcionario.NomeCompleto,
-                        nip = usuario.Funcionario.Nip
-                    }
+                perfil =
+                    usuario.Perfil,
+
+                ativo =
+                    usuario.Ativo,
+
+                dataCadastro =
+                    usuario.DataCadastro,
+
+                funcionarioId =
+                    usuario.FuncionarioId,
+
+                funcionario =
+                    usuario.Funcionario == null
+                        ? null
+                        : new
+                        {
+                            id =
+                                usuario.Funcionario.Id,
+
+                            nomeCompleto =
+                                usuario.Funcionario.NomeCompleto,
+
+                            nip =
+                                usuario.Funcionario.Nip
+                        }
             });
         }
 
         // =========================================================
         // CRIAR UTILIZADOR
+        // ADMINISTRADOR
         // =========================================================
 
         [Authorize(Roles = PerfisUsuario.Administrador)]
@@ -219,31 +345,42 @@ namespace supai_mp.Controllers
         public async Task<IActionResult> CriarUtilizador(
             CriarUsuarioDto dto)
         {
-            // -----------------------------------------------------
-            // Validar perfil
-            // -----------------------------------------------------
+            if (dto == null)
+            {
+                return BadRequest(
+                    "Os dados do utilizador são obrigatórios.");
+            }
 
-            var perfil = PerfisUsuario.Todos
-                .FirstOrDefault(p =>
-                    string.Equals(
-                        p,
-                        dto.Perfil,
-                        StringComparison.OrdinalIgnoreCase));
+            // ---------------------------------------------------------
+            // Validar perfil
+            // ---------------------------------------------------------
+
+            var perfil =
+                PerfisUsuario.Todos
+                    .FirstOrDefault(p =>
+                        string.Equals(
+                            p,
+                            dto.Perfil,
+                            StringComparison.OrdinalIgnoreCase));
 
             if (perfil == null)
             {
                 return BadRequest(new
                 {
-                    mensagem = "Perfil inválido.",
-                    perfisPermitidos = PerfisUsuario.Todos
+                    mensagem =
+                        "Perfil inválido.",
+
+                    perfisPermitidos =
+                        PerfisUsuario.Todos
                 });
             }
 
-            // -----------------------------------------------------
-            // Verificar nome de utilizador
-            // -----------------------------------------------------
+            // ---------------------------------------------------------
+            // Validar nome de utilizador
+            // ---------------------------------------------------------
 
-            var nomeUsuario = dto.NomeUsuario.Trim();
+            var nomeUsuario =
+                dto.NomeUsuario?.Trim();
 
             if (string.IsNullOrWhiteSpace(nomeUsuario))
             {
@@ -251,8 +388,10 @@ namespace supai_mp.Controllers
                     "O nome de utilizador é obrigatório.");
             }
 
-            bool nomeExiste = await _context.Usuarios
-                .AnyAsync(u => u.NomeUsuario == nomeUsuario);
+            bool nomeExiste =
+                await _context.Usuarios
+                    .AnyAsync(u =>
+                        u.NomeUsuario == nomeUsuario);
 
             if (nomeExiste)
             {
@@ -260,13 +399,14 @@ namespace supai_mp.Controllers
                     "Já existe um utilizador com esse nome.");
             }
 
-            // -----------------------------------------------------
-            // Verificar funcionário
-            // -----------------------------------------------------
+            // ---------------------------------------------------------
+            // Validar funcionário
+            // ---------------------------------------------------------
 
-            var funcionario = await _context.Funcionarios
-                .FirstOrDefaultAsync(f =>
-                    f.Id == dto.FuncionarioId);
+            var funcionario =
+                await _context.Funcionarios
+                    .FirstOrDefaultAsync(
+                        f => f.Id == dto.FuncionarioId);
 
             if (funcionario == null)
             {
@@ -274,14 +414,15 @@ namespace supai_mp.Controllers
                     "Funcionário não encontrado.");
             }
 
-            // -----------------------------------------------------
+            // ---------------------------------------------------------
             // Verificar se funcionário já possui acesso
-            // -----------------------------------------------------
+            // ---------------------------------------------------------
 
             bool funcionarioJaPossuiUsuario =
                 await _context.Usuarios
                     .AnyAsync(u =>
-                        u.FuncionarioId == funcionario.Id);
+                        u.FuncionarioId ==
+                        funcionario.Id);
 
             if (funcionarioJaPossuiUsuario)
             {
@@ -289,25 +430,32 @@ namespace supai_mp.Controllers
                     "Este funcionário já possui um utilizador associado.");
             }
 
-            // -----------------------------------------------------
+            // ---------------------------------------------------------
             // Criar utilizador
-            // -----------------------------------------------------
+            // ---------------------------------------------------------
 
-            var usuario = new Usuario
-            {
-                NomeUsuario = nomeUsuario,
+            var usuario =
+                new Usuario
+                {
+                    NomeUsuario =
+                        nomeUsuario,
 
-                SenhaHash =
-                    BCrypt.Net.BCrypt.HashPassword(dto.Senha),
+                    SenhaHash =
+                        BCrypt.Net.BCrypt.HashPassword(
+                            dto.Senha),
 
-                Perfil = perfil,
+                    Perfil =
+                        perfil,
 
-                FuncionarioId = funcionario.Id,
+                    FuncionarioId =
+                        funcionario.Id,
 
-                Ativo = true,
+                    Ativo =
+                        true,
 
-                DataCadastro = DateTime.Now
-            };
+                    DataCadastro =
+                        DateTime.Now
+                };
 
             _context.Usuarios.Add(usuario);
 
@@ -315,19 +463,26 @@ namespace supai_mp.Controllers
 
             return CreatedAtAction(
                 nameof(ObterUtilizador),
-                new { id = usuario.Id },
+                new
+                {
+                    id = usuario.Id
+                },
                 new
                 {
                     mensagem =
                         "Utilizador criado com sucesso.",
 
-                    id = usuario.Id,
+                    id =
+                        usuario.Id,
 
-                    nomeUsuario = usuario.NomeUsuario,
+                    nomeUsuario =
+                        usuario.NomeUsuario,
 
-                    perfil = usuario.Perfil,
+                    perfil =
+                        usuario.Perfil,
 
-                    ativo = usuario.Ativo,
+                    ativo =
+                        usuario.Ativo,
 
                     funcionarioId =
                         funcionario.Id,
@@ -339,6 +494,7 @@ namespace supai_mp.Controllers
 
         // =========================================================
         // EDITAR UTILIZADOR
+        // ADMINISTRADOR
         // =========================================================
 
         [Authorize(Roles = PerfisUsuario.Administrador)]
@@ -347,44 +503,66 @@ namespace supai_mp.Controllers
             int id,
             EditarUsuarioDto dto)
         {
-            var usuario = await _context.Usuarios
-                .FirstOrDefaultAsync(u => u.Id == id);
+            if (dto == null)
+            {
+                return BadRequest(
+                    "Os dados do utilizador são obrigatórios.");
+            }
+
+            var usuario =
+                await _context.Usuarios
+                    .FirstOrDefaultAsync(
+                        u => u.Id == id);
 
             if (usuario == null)
             {
-                return NotFound("Utilizador não encontrado.");
+                return NotFound(
+                    "Utilizador não encontrado.");
             }
 
-            // -----------------------------------------------------
+            // ---------------------------------------------------------
             // Validar perfil
-            // -----------------------------------------------------
+            // ---------------------------------------------------------
 
-            var perfil = PerfisUsuario.Todos
-                .FirstOrDefault(p =>
-                    string.Equals(
-                        p,
-                        dto.Perfil,
-                        StringComparison.OrdinalIgnoreCase));
+            var perfil =
+                PerfisUsuario.Todos
+                    .FirstOrDefault(p =>
+                        string.Equals(
+                            p,
+                            dto.Perfil,
+                            StringComparison.OrdinalIgnoreCase));
 
             if (perfil == null)
             {
                 return BadRequest(new
                 {
-                    mensagem = "Perfil inválido.",
-                    perfisPermitidos = PerfisUsuario.Todos
+                    mensagem =
+                        "Perfil inválido.",
+
+                    perfisPermitidos =
+                        PerfisUsuario.Todos
                 });
             }
 
-            // -----------------------------------------------------
-            // Verificar nome de utilizador duplicado
-            // -----------------------------------------------------
+            // ---------------------------------------------------------
+            // Validar nome de utilizador
+            // ---------------------------------------------------------
 
-            var nomeUsuario = dto.NomeUsuario.Trim();
+            var nomeUsuario =
+                dto.NomeUsuario?.Trim();
 
-            bool nomeExiste = await _context.Usuarios
-                .AnyAsync(u =>
-                    u.Id != id &&
-                    u.NomeUsuario == nomeUsuario);
+            if (string.IsNullOrWhiteSpace(nomeUsuario))
+            {
+                return BadRequest(
+                    "O nome de utilizador é obrigatório.");
+            }
+
+            bool nomeExiste =
+                await _context.Usuarios
+                    .AnyAsync(u =>
+                        u.Id != id &&
+                        u.NomeUsuario ==
+                        nomeUsuario);
 
             if (nomeExiste)
             {
@@ -392,13 +570,14 @@ namespace supai_mp.Controllers
                     "Já existe outro utilizador com esse nome.");
             }
 
-            // -----------------------------------------------------
-            // Verificar funcionário
-            // -----------------------------------------------------
+            // ---------------------------------------------------------
+            // Validar funcionário
+            // ---------------------------------------------------------
 
-            var funcionario = await _context.Funcionarios
-                .FirstOrDefaultAsync(f =>
-                    f.Id == dto.FuncionarioId);
+            var funcionario =
+                await _context.Funcionarios
+                    .FirstOrDefaultAsync(
+                        f => f.Id == dto.FuncionarioId);
 
             if (funcionario == null)
             {
@@ -406,15 +585,16 @@ namespace supai_mp.Controllers
                     "Funcionário não encontrado.");
             }
 
-            // -----------------------------------------------------
-            // Verificar se outro utilizador usa o funcionário
-            // -----------------------------------------------------
+            // ---------------------------------------------------------
+            // Verificar associação duplicada
+            // ---------------------------------------------------------
 
             bool funcionarioJaUtilizado =
                 await _context.Usuarios
                     .AnyAsync(u =>
                         u.Id != id &&
-                        u.FuncionarioId == funcionario.Id);
+                        u.FuncionarioId ==
+                        funcionario.Id);
 
             if (funcionarioJaUtilizado)
             {
@@ -422,9 +602,9 @@ namespace supai_mp.Controllers
                     "Este funcionário já está associado a outro utilizador.");
             }
 
-            // -----------------------------------------------------
+            // ---------------------------------------------------------
             // Impedir retirar o último administrador ativo
-            // -----------------------------------------------------
+            // ---------------------------------------------------------
 
             if (usuario.Perfil ==
                     PerfisUsuario.Administrador &&
@@ -445,13 +625,18 @@ namespace supai_mp.Controllers
                 }
             }
 
-            // -----------------------------------------------------
+            // ---------------------------------------------------------
             // Atualizar
-            // -----------------------------------------------------
+            // ---------------------------------------------------------
 
-            usuario.NomeUsuario = nomeUsuario;
-            usuario.Perfil = perfil;
-            usuario.FuncionarioId = funcionario.Id;
+            usuario.NomeUsuario =
+                nomeUsuario;
+
+            usuario.Perfil =
+                perfil;
+
+            usuario.FuncionarioId =
+                funcionario.Id;
 
             await _context.SaveChangesAsync();
 
@@ -460,11 +645,14 @@ namespace supai_mp.Controllers
                 mensagem =
                     "Utilizador atualizado com sucesso.",
 
-                id = usuario.Id,
+                id =
+                    usuario.Id,
 
-                nomeUsuario = usuario.NomeUsuario,
+                nomeUsuario =
+                    usuario.NomeUsuario,
 
-                perfil = usuario.Perfil,
+                perfil =
+                    usuario.Perfil,
 
                 funcionarioId =
                     usuario.FuncionarioId,
@@ -472,12 +660,14 @@ namespace supai_mp.Controllers
                 funcionario =
                     funcionario.NomeCompleto,
 
-                ativo = usuario.Ativo
+                ativo =
+                    usuario.Ativo
             });
         }
 
         // =========================================================
         // ATIVAR / DESATIVAR UTILIZADOR
+        // ADMINISTRADOR
         // =========================================================
 
         [Authorize(Roles = PerfisUsuario.Administrador)]
@@ -486,17 +676,26 @@ namespace supai_mp.Controllers
             int id,
             AlterarEstadoUsuarioDto dto)
         {
-            var usuario = await _context.Usuarios
-                .FirstOrDefaultAsync(u => u.Id == id);
+            if (dto == null)
+            {
+                return BadRequest(
+                    "Os dados do estado são obrigatórios.");
+            }
+
+            var usuario =
+                await _context.Usuarios
+                    .FirstOrDefaultAsync(
+                        u => u.Id == id);
 
             if (usuario == null)
             {
-                return NotFound("Utilizador não encontrado.");
+                return NotFound(
+                    "Utilizador não encontrado.");
             }
 
-            // -----------------------------------------------------
+            // ---------------------------------------------------------
             // Impedir desativar o último administrador ativo
-            // -----------------------------------------------------
+            // ---------------------------------------------------------
 
             if (!dto.Ativo &&
                 usuario.Ativo &&
@@ -517,21 +716,26 @@ namespace supai_mp.Controllers
                 }
             }
 
-            usuario.Ativo = dto.Ativo;
+            usuario.Ativo =
+                dto.Ativo;
 
             await _context.SaveChangesAsync();
 
             return Ok(new
             {
-                mensagem = usuario.Ativo
-                    ? "Utilizador ativado com sucesso."
-                    : "Utilizador desativado com sucesso.",
+                mensagem =
+                    usuario.Ativo
+                        ? "Utilizador ativado com sucesso."
+                        : "Utilizador desativado com sucesso.",
 
-                id = usuario.Id,
+                id =
+                    usuario.Id,
 
-                nomeUsuario = usuario.NomeUsuario,
+                nomeUsuario =
+                    usuario.NomeUsuario,
 
-                ativo = usuario.Ativo
+                ativo =
+                    usuario.Ativo
             });
         }
 
@@ -546,30 +750,41 @@ namespace supai_mp.Controllers
             int id,
             AlterarSenhaUsuarioDto dto)
         {
-            var usuario = await _context.Usuarios
-                .FirstOrDefaultAsync(u => u.Id == id);
+            if (dto == null)
+            {
+                return BadRequest(
+                    "Os dados da senha são obrigatórios.");
+            }
+
+            var usuario =
+                await _context.Usuarios
+                    .FirstOrDefaultAsync(
+                        u => u.Id == id);
 
             if (usuario == null)
             {
-                return NotFound("Utilizador não encontrado.");
+                return NotFound(
+                    "Utilizador não encontrado.");
             }
 
-            if (dto.NovaSenha != dto.ConfirmarNovaSenha)
+            if (dto.NovaSenha !=
+                dto.ConfirmarNovaSenha)
             {
                 return BadRequest(
                     "A confirmação da nova senha não corresponde.");
             }
 
             if (BCrypt.Net.BCrypt.Verify(
-                dto.NovaSenha,
-                usuario.SenhaHash))
+                    dto.NovaSenha,
+                    usuario.SenhaHash))
             {
                 return BadRequest(
                     "A nova senha deve ser diferente da senha atual.");
             }
 
             usuario.SenhaHash =
-                BCrypt.Net.BCrypt.HashPassword(dto.NovaSenha);
+                BCrypt.Net.BCrypt.HashPassword(
+                    dto.NovaSenha);
 
             await _context.SaveChangesAsync();
 
@@ -582,6 +797,7 @@ namespace supai_mp.Controllers
 
         // =========================================================
         // ALTERAR ASSOCIAÇÃO DO FUNCIONÁRIO
+        // ADMINISTRADOR
         // =========================================================
 
         [Authorize(Roles = PerfisUsuario.Administrador)]
@@ -589,9 +805,16 @@ namespace supai_mp.Controllers
         public async Task<IActionResult> AssociarFuncionario(
             AssociarFuncionarioDto dto)
         {
-            var usuario = await _context.Usuarios
-                .FirstOrDefaultAsync(u =>
-                    u.Id == dto.UsuarioId);
+            if (dto == null)
+            {
+                return BadRequest(
+                    "Os dados da associação são obrigatórios.");
+            }
+
+            var usuario =
+                await _context.Usuarios
+                    .FirstOrDefaultAsync(
+                        u => u.Id == dto.UsuarioId);
 
             if (usuario == null)
             {
@@ -599,9 +822,10 @@ namespace supai_mp.Controllers
                     "Utilizador não encontrado.");
             }
 
-            var funcionario = await _context.Funcionarios
-                .FirstOrDefaultAsync(f =>
-                    f.Id == dto.FuncionarioId);
+            var funcionario =
+                await _context.Funcionarios
+                    .FirstOrDefaultAsync(
+                        f => f.Id == dto.FuncionarioId);
 
             if (funcionario == null)
             {
@@ -609,15 +833,16 @@ namespace supai_mp.Controllers
                     "Funcionário não encontrado.");
             }
 
-            // -----------------------------------------------------
+            // ---------------------------------------------------------
             // Verificar se outro utilizador já possui este funcionário
-            // -----------------------------------------------------
+            // ---------------------------------------------------------
 
             bool funcionarioJaUtilizado =
                 await _context.Usuarios
                     .AnyAsync(u =>
                         u.Id != usuario.Id &&
-                        u.FuncionarioId == funcionario.Id);
+                        u.FuncionarioId ==
+                        funcionario.Id);
 
             if (funcionarioJaUtilizado)
             {
@@ -625,7 +850,8 @@ namespace supai_mp.Controllers
                     "Este funcionário já está associado a outro utilizador.");
             }
 
-            usuario.FuncionarioId = funcionario.Id;
+            usuario.FuncionarioId =
+                funcionario.Id;
 
             await _context.SaveChangesAsync();
 
@@ -634,11 +860,14 @@ namespace supai_mp.Controllers
                 mensagem =
                     "Utilizador associado ao funcionário com sucesso.",
 
-                usuario = usuario.NomeUsuario,
+                usuario =
+                    usuario.NomeUsuario,
 
-                funcionario = funcionario.NomeCompleto,
+                funcionario =
+                    funcionario.NomeCompleto,
 
-                funcionarioId = funcionario.Id
+                funcionarioId =
+                    funcionario.Id
             });
         }
 
@@ -649,51 +878,62 @@ namespace supai_mp.Controllers
         private string GerarToken(Usuario usuario)
         {
             if (usuario.Funcionario == null)
-            {
                 throw new InvalidOperationException(
                     "O utilizador precisa estar associado a um funcionário para gerar o token.");
-            }
+
+            if (string.IsNullOrWhiteSpace(usuario.Perfil))
+                throw new InvalidOperationException(
+                    "O utilizador precisa possuir um perfil.");
+
+            var jwtKey = _configuration["Jwt:Key"];
+            var issuer = _configuration["Jwt:Issuer"];
+            var audience = _configuration["Jwt:Audience"];
+
+            if (string.IsNullOrWhiteSpace(jwtKey))
+                throw new InvalidOperationException(
+                    "Jwt:Key não está configurada.");
+
+            if (string.IsNullOrWhiteSpace(issuer))
+                throw new InvalidOperationException(
+                    "Jwt:Issuer não está configurado.");
+
+            if (string.IsNullOrWhiteSpace(audience))
+                throw new InvalidOperationException(
+                    "Jwt:Audience não está configurado.");
 
             var claims = new[]
             {
-                new Claim(
-                    ClaimTypes.NameIdentifier,
-                    usuario.Id.ToString()),
+        new Claim(
+            ClaimTypes.NameIdentifier,
+            usuario.Id.ToString()),
 
-                new Claim(
-                    ClaimTypes.Name,
-                    usuario.NomeUsuario),
+        new Claim(
+            ClaimTypes.Name,
+            usuario.NomeUsuario),
 
-                new Claim(
-                    ClaimTypes.Role,
-                    usuario.Perfil),
+        new Claim(
+            ClaimTypes.Role,
+            usuario.Perfil),
 
-                new Claim(
-                    "Nip",
-                    usuario.Funcionario.Nip)
-            };
-
-            var jwtKey = _configuration["Jwt:Key"];
-
-            if (string.IsNullOrWhiteSpace(jwtKey))
-            {
-                throw new InvalidOperationException(
-                    "Jwt:Key não está configurada.");
-            }
+        new Claim(
+            "Nip",
+            usuario.Funcionario.Nip)
+    };
 
             var key = new SymmetricSecurityKey(
                 Encoding.UTF8.GetBytes(jwtKey));
 
-            var creds = new SigningCredentials(
+            var credentials = new SigningCredentials(
                 key,
                 SecurityAlgorithms.HmacSha256);
 
             var token = new JwtSecurityToken(
-                issuer: _configuration["Jwt:Issuer"],
-                audience: _configuration["Jwt:Audience"],
+                issuer: issuer,
+                audience: audience,
                 claims: claims,
                 expires: DateTime.UtcNow.AddHours(8),
-                signingCredentials: creds);
+                signingCredentials: credentials
+            );
 
             return new JwtSecurityTokenHandler()
                 .WriteToken(token);
@@ -701,105 +941,147 @@ namespace supai_mp.Controllers
 
         // =========================================================
         // CRIAR / RECUPERAR ADMINISTRADOR INICIAL
+        // ADMINISTRADOR
         // =========================================================
         //
-        // ESTE ENDPOINT É TEMPORÁRIO.
-        // Depois de confirmarmos que a nova gestão de utilizadores
-        // funciona, vamos removê-lo/protegê-lo.
+        // Este endpoint deixou de ser público.
+        //
+        // Como a gestão normal de utilizadores já está implementada,
+        // não devemos deixar um endpoint anónimo capaz de criar ou
+        // reativar um administrador.
         //
         // =========================================================
 
-        [AllowAnonymous]
+        [Authorize(Roles = PerfisUsuario.Administrador)]
         [HttpPost("criar-admin")]
         public async Task<IActionResult> CriarAdmin()
         {
-            var usuario = await _context.Usuarios
-                .FirstOrDefaultAsync(u =>
-                    u.NomeUsuario == "admin");
+            var usuario =
+                await _context.Usuarios
+                    .FirstOrDefaultAsync(
+                        u => u.NomeUsuario == "admin");
 
-            var funcionario = await _context.Funcionarios
-                .FirstOrDefaultAsync(f =>
-                    f.Nip == "11452654");
+            var funcionario =
+                await _context.Funcionarios
+                    .FirstOrDefaultAsync(
+                        f => f.Nip == "11452654");
 
-            // -----------------------------------------------------
+            // ---------------------------------------------------------
             // Criar funcionário caso não exista
-            // -----------------------------------------------------
+            // ---------------------------------------------------------
 
             if (funcionario == null)
             {
-                funcionario = new Funcionario
-                {
-                    NomeCompleto = "MILTON EDUARDO CUMBE",
-                    Nip = "11452654",
-                    Bi = "110500829930I",
-                    Nuit = "1457965",
+                funcionario =
+                    new Funcionario
+                    {
+                        NomeCompleto =
+                            "MILTON EDUARDO CUMBE",
 
-                    G = Genero.M,
+                        Nip =
+                            "11452654",
 
-                    estado_civil =
-                        EstadoCivil.Solteiro,
+                        Bi =
+                            "110500829930I",
 
-                    nivelAcademico =
-                        NivelAcademico.Técnico,
+                        Nuit =
+                            "1457965",
 
-                    grauParentesco =
-                        GrauParentesco.MÃE,
+                        G =
+                            Genero.M,
 
-                    Contacto = "840474886",
-                    C_Alternativo = "870843769",
-                    C_Familiar = "849523864",
+                        estado_civil =
+                            EstadoCivil.Solteiro,
 
-                    DataNascimento =
-                        new DateTime(1995, 11, 12),
+                        nivelAcademico =
+                            NivelAcademico.Técnico,
 
-                    DataIngresso =
-                        new DateTime(2021, 10, 27),
+                        grauParentesco =
+                            GrauParentesco.MÃE,
 
-                    LocalTrabalho = "SUPAI_MP",
-                    Bairro = "LUIS CABRAL",
-                    Quarterao_N = "38",
-                    Casa_N = "60",
+                        Contacto =
+                            "840474886",
 
-                    Categoria = Categoria.GUA,
-                    Funcao = "TECNICO",
+                        C_Alternativo =
+                            "870843769",
 
-                    Estado =
-                        EstadoFuncionario.ACTIVO,
+                        C_Familiar =
+                            "849523864",
 
-                    DataCadastro = DateTime.Now
-                };
+                        DataNascimento =
+                            new DateTime(
+                                1995,
+                                11,
+                                12),
 
-                _context.Funcionarios.Add(funcionario);
+                        DataIngresso =
+                            new DateTime(
+                                2021,
+                                10,
+                                27),
+
+                        LocalTrabalho =
+                            "SUPAI_MP",
+
+                        Bairro =
+                            "LUIS CABRAL",
+
+                        Quarterao_N =
+                            "38",
+
+                        Casa_N =
+                            "60",
+
+                        Categoria =
+                            Categoria.GUA,
+
+                        Funcao =
+                            "TECNICO",
+
+                        Estado =
+                            EstadoFuncionario.ACTIVO,
+
+                        DataCadastro =
+                            DateTime.Now
+                    };
+
+                _context.Funcionarios.Add(
+                    funcionario);
 
                 await _context.SaveChangesAsync();
             }
 
-            // -----------------------------------------------------
+            // ---------------------------------------------------------
             // Criar admin caso não exista
-            // -----------------------------------------------------
+            // ---------------------------------------------------------
 
             if (usuario == null)
             {
-                usuario = new Usuario
-                {
-                    NomeUsuario = "admin",
+                usuario =
+                    new Usuario
+                    {
+                        NomeUsuario =
+                            "admin",
 
-                    SenhaHash =
-                        BCrypt.Net.BCrypt.HashPassword(
-                            "Admin@123"),
+                        SenhaHash =
+                            BCrypt.Net.BCrypt.HashPassword(
+                                "Admin@123"),
 
-                    Perfil =
-                        PerfisUsuario.Administrador,
+                        Perfil =
+                            PerfisUsuario.Administrador,
 
-                    Ativo = true,
+                        Ativo =
+                            true,
 
-                    DataCadastro = DateTime.Now,
+                        DataCadastro =
+                            DateTime.Now,
 
-                    FuncionarioId =
-                        funcionario.Id
-                };
+                        FuncionarioId =
+                            funcionario.Id
+                    };
 
-                _context.Usuarios.Add(usuario);
+                _context.Usuarios.Add(
+                    usuario);
 
                 await _context.SaveChangesAsync();
 
@@ -808,16 +1090,17 @@ namespace supai_mp.Controllers
                     mensagem =
                         "Administrador criado e associado ao funcionário com sucesso.",
 
-                    usuario = usuario.NomeUsuario,
+                    usuario =
+                        usuario.NomeUsuario,
 
                     funcionario =
                         funcionario.NomeCompleto
                 });
             }
 
-            // -----------------------------------------------------
+            // ---------------------------------------------------------
             // Admin já existe
-            // -----------------------------------------------------
+            // ---------------------------------------------------------
 
             if (usuario.FuncionarioId != null)
             {
@@ -826,16 +1109,17 @@ namespace supai_mp.Controllers
                     mensagem =
                         "O administrador já existe e está associado a um funcionário.",
 
-                    usuario = usuario.NomeUsuario,
+                    usuario =
+                        usuario.NomeUsuario,
 
                     funcionarioId =
                         usuario.FuncionarioId
                 });
             }
 
-            // -----------------------------------------------------
+            // ---------------------------------------------------------
             // Associar funcionário ao admin existente
-            // -----------------------------------------------------
+            // ---------------------------------------------------------
 
             usuario.FuncionarioId =
                 funcionario.Id;
@@ -843,7 +1127,8 @@ namespace supai_mp.Controllers
             usuario.Perfil =
                 PerfisUsuario.Administrador;
 
-            usuario.Ativo = true;
+            usuario.Ativo =
+                true;
 
             await _context.SaveChangesAsync();
 
@@ -852,7 +1137,8 @@ namespace supai_mp.Controllers
                 mensagem =
                     "Administrador associado ao funcionário com sucesso.",
 
-                usuario = usuario.NomeUsuario,
+                usuario =
+                    usuario.NomeUsuario,
 
                 funcionario =
                     funcionario.NomeCompleto,
@@ -861,11 +1147,18 @@ namespace supai_mp.Controllers
                     funcionario.Id
             });
         }
+
+        // =========================================================
+        // LISTAR PERFIS
+        // ADMINISTRADOR
+        // =========================================================
+
         [Authorize(Roles = PerfisUsuario.Administrador)]
         [HttpGet("perfis")]
         public IActionResult ListarPerfis()
         {
-            return Ok(PerfisUsuario.Todos);
+            return Ok(
+                PerfisUsuario.Todos);
         }
     }
 }

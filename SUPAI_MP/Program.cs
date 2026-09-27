@@ -1,10 +1,11 @@
-using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
-using System.Text;
 using supai_mp.Data;
+using supai_mp.Models;
 using System.Security.Claims;
+using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -65,7 +66,97 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
 // AUTORIZAÇÃO
 // ============================================================
 
-builder.Services.AddAuthorization();
+builder.Services.AddAuthorization(options =>
+{
+    // ============================================================
+    // ADMINISTRADOR
+    // ============================================================
+
+    options.AddPolicy("Administrador", policy =>
+    {
+        policy.RequireRole(
+            PerfisUsuario.Administrador);
+    });
+
+
+    // ============================================================
+    // ADMINISTRADOR + GESTOR
+    // ============================================================
+
+    options.AddPolicy("AdministradorGestor", policy =>
+    {
+        policy.RequireRole(
+            PerfisUsuario.Administrador,
+            PerfisUsuario.Gestor);
+    });
+
+
+    // ============================================================
+    // CONSULTA GERAL
+    // ============================================================
+
+    options.AddPolicy("ConsultaGeral", policy =>
+    {
+        policy.RequireRole(
+            PerfisUsuario.Administrador,
+            PerfisUsuario.Gestor,
+            PerfisUsuario.Supervisor,
+            PerfisUsuario.Operador,
+            PerfisUsuario.Consulta);
+    });
+
+
+    // ============================================================
+    // SEGURANÇA PESSOAL
+    // ============================================================
+
+    options.AddPolicy("SegurancaPessoal", policy =>
+    {
+        policy.RequireRole(
+            PerfisUsuario.Administrador,
+            PerfisUsuario.Gestor,
+            PerfisUsuario.TecnicoSP);
+    });
+
+
+    // ============================================================
+    // PROTECÇÃO DE OBJECTOS
+    // ============================================================
+
+    options.AddPolicy("ProteccaoObjectos", policy =>
+    {
+        policy.RequireRole(
+            PerfisUsuario.Administrador,
+            PerfisUsuario.Gestor,
+            PerfisUsuario.TecnicoPO);
+    });
+
+
+    // ============================================================
+    // TRANSFERÊNCIA / RETIRADA — SEGURANÇA PESSOAL
+    // ============================================================
+
+    options.AddPolicy("OperacaoSegurancaPessoal", policy =>
+    {
+        policy.RequireRole(
+            PerfisUsuario.Administrador,
+            PerfisUsuario.Gestor,
+            PerfisUsuario.TecnicoSP);
+    });
+
+
+    // ============================================================
+    // TRANSFERÊNCIA / RETIRADA — PROTECÇÃO DE OBJECTOS
+    // ============================================================
+
+    options.AddPolicy("OperacaoProteccaoObjectos", policy =>
+    {
+        policy.RequireRole(
+            PerfisUsuario.Administrador,
+            PerfisUsuario.Gestor,
+            PerfisUsuario.TecnicoPO);
+    });
+});
 
 // ============================================================
 // JWT

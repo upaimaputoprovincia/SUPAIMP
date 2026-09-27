@@ -202,7 +202,7 @@ namespace supai_mp.Controllers
         // GET: api/Funcionarios
         // ============================================================
 
-        [Authorize(Roles = "Administrador")]
+        [Authorize(Roles = "Administrador,Gestor,Supervisor,Operador,Consulta")]
         [HttpGet]
         public async Task<IActionResult> GetFuncionarios()
         {
@@ -328,7 +328,7 @@ namespace supai_mp.Controllers
         // GET: api/Funcionarios/pesquisar?termo=Joao
         // ============================================================
 
-        [Authorize(Roles = "Administrador")]
+        [Authorize(Roles = "Administrador,Gestor,Supervisor,Consulta")]
         [HttpGet("pesquisar")]
         public async Task<IActionResult> PesquisarFuncionarios(
             string termo)
@@ -571,7 +571,7 @@ namespace supai_mp.Controllers
         // GET: api/Funcionarios/pesquisa-avancada
         // ============================================================
 
-        [Authorize(Roles = "Administrador")]
+        [Authorize(Roles = "Administrador,Gestor,Supervisor,Consulta")]
         [HttpGet("pesquisa-avancada")]
         public async Task<IActionResult> PesquisaAvancada(
             [FromQuery] FuncionarioPesquisaDto filtro)
@@ -1030,7 +1030,7 @@ namespace supai_mp.Controllers
         // POST: api/Funcionarios
         // ============================================================
 
-        [Authorize(Roles = "Administrador")]
+        [Authorize(Roles = "Administrador,Gestor")]
         [HttpPost]
         public async Task<IActionResult>
             CriarFuncionario(
@@ -1177,7 +1177,7 @@ namespace supai_mp.Controllers
         // GET: api/Funcionarios/{id}
         // ============================================================
 
-        [Authorize(Roles = "Administrador")]
+        [Authorize(Roles = "Administrador,Gestor,Supervisor,Consulta")]
         [HttpGet("{id}")]
         public async Task<IActionResult>
             GetFuncionario(int id)
@@ -1198,7 +1198,7 @@ namespace supai_mp.Controllers
         // PUT: api/Funcionarios/{id}
         // ============================================================
 
-        [Authorize(Roles = "Administrador")]
+        [Authorize(Roles = "Administrador,Gestor")]
         [HttpPut("{id}")]
         public async Task<IActionResult>
             AtualizarFuncionario(
@@ -1387,7 +1387,7 @@ namespace supai_mp.Controllers
         // GET: api/Funcionarios/acessos
         // ============================================================
 
-        [Authorize(Roles = "Administrador")]
+        [Authorize(Roles = "Administrador,Gestor")]
         [HttpGet("acessos")]
         public async Task<IActionResult>
             ListarAcessos()
@@ -1483,7 +1483,7 @@ namespace supai_mp.Controllers
         // PUT: api/Funcionarios/{id}/seccao
         // ============================================================
 
-        [Authorize(Roles = "Administrador")]
+        [Authorize(Roles = "Administrador,Gestor")]
         [HttpPut("{id}/seccao")]
         public async Task<IActionResult>
             AtribuirSeccao(
@@ -1549,7 +1549,7 @@ namespace supai_mp.Controllers
         // ============================================================
 
         [HttpGet("sem-seccao")]
-        [Authorize(Roles = "Administrador")]
+        [Authorize(Roles = "Administrador,Gestor")]
         public async Task<IActionResult>
             GetFuncionariosSemSeccao()
         {
@@ -1594,7 +1594,7 @@ namespace supai_mp.Controllers
         // ============================================================
 
         [HttpGet("com-seccao")]
-        [Authorize(Roles = "Administrador")]
+        [Authorize(Roles = "Administrador,Gestor")]
         public async Task<IActionResult>
             GetFuncionariosComSeccao(
                 int? seccaoId = null)
@@ -1648,7 +1648,7 @@ namespace supai_mp.Controllers
         }
 
         [HttpGet("duplicados")]
-        [Authorize(Roles = "Administrador")]
+        [Authorize(Roles = "Administrador,Gestor")]
         public async Task<IActionResult> ObterDuplicados()
         {
             var funcionarios = await _context.Funcionarios
@@ -1689,7 +1689,7 @@ namespace supai_mp.Controllers
         }
 
         [HttpGet("duplicados/detalhes")]
-        [Authorize(Roles = "Administrador")]
+        [Authorize(Roles = "Administrador,Gestor")]
         public async Task<IActionResult> ObterDuplicadosDetalhes()
         {
             var funcionarios = await _context.Funcionarios
@@ -1808,7 +1808,7 @@ namespace supai_mp.Controllers
         }
 
         [HttpGet("duplicados/usuarios")]
-        [Authorize(Roles = "Administrador")]
+        [Authorize(Roles = "Administrador,Gestor")]
         public async Task<IActionResult> ObterDuplicadosComUsuarios()
         {
             var funcionarios = await _context.Funcionarios
@@ -1984,7 +1984,7 @@ namespace supai_mp.Controllers
         }
 
         [HttpGet("duplicados/analise")]
-        [Authorize(Roles = "Administrador")]
+        [Authorize(Roles = "Administrador,Gestor")]
         public async Task<IActionResult> AnalisarDuplicados()
         {
             var funcionarios = await _context.Funcionarios
@@ -3197,7 +3197,7 @@ namespace supai_mp.Controllers
         }
 
         [HttpGet("duplicados/usuario-dependencias")]
-        [Authorize(Roles = "Administrador")]
+        [Authorize(Roles = "Administrador,Gestor")]
         public async Task<IActionResult> ObterDependenciasUsuariosDuplicados()
         {
             var funcionarios = await _context.Funcionarios
@@ -3341,7 +3341,7 @@ namespace supai_mp.Controllers
         // DELETE: api/Funcionarios/{id}
         // ============================================================
 
-        [Authorize(Roles = "Administrador")]
+        [Authorize(Roles = "Administrador,Gestor")]
         [HttpDelete("{id}")]
         public async Task<IActionResult>
             InativarFuncionario(int id)
