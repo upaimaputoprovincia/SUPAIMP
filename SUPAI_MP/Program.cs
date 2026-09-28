@@ -102,7 +102,7 @@ builder.Services.AddAuthorization(options =>
             PerfisUsuario.Gestor,
             PerfisUsuario.Supervisor,
             PerfisUsuario.Operador,
-            PerfisUsuario.Consulta);
+            PerfisUsuario.Consultor);
     });
 
 
