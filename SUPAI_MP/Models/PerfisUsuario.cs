@@ -14,7 +14,7 @@
 
         public const string Operador = "Operador";
 
-        public const string Consulta = "Consulta";
+        public const string Consultor = "Consultor";
 
         public const string Funcionario = "Funcionario";
 
@@ -26,13 +26,13 @@
         /// Técnico responsável pelas operações da
         /// Secção de Segurança Pessoal.
         /// </summary>
-        public const string TecnicoSP = "TecnicoSP";
+        public const string TecnicoSP = "Tecnico SP";
 
         /// <summary>
         /// Técnico responsável pelas operações da
         /// Secção de Protecção de Objectos.
         /// </summary>
-        public const string TecnicoPO = "TecnicoPO";
+        public const string TecnicoPO = "Tecnico PO";
 
 
         // ============================================================
@@ -45,7 +45,7 @@
             Gestor,
             Supervisor,
             Operador,
-            Consulta,
+            Consultor,
             Funcionario,
             TecnicoSP,
             TecnicoPO
