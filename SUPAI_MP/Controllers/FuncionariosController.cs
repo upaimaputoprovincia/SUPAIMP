@@ -887,6 +887,7 @@ namespace supai_mp.Controllers
 
             var query = _context.Funcionarios
                 .AsNoTracking()
+                .Include(f => f.Seccao)
                 .AsQueryable();
 
             if (!string.IsNullOrWhiteSpace(nome))
@@ -1016,6 +1017,11 @@ namespace supai_mp.Controllers
                         f.Estado,
                         f.FotografiaUrl,
                         f.SeccaoId,
+
+                        SeccaoNome =
+                            f.Seccao != null
+                                ? f.Seccao.Nome
+                                : null,
 
                         TemUsuario =
                             idsComUsuario.Contains(f.Id)
