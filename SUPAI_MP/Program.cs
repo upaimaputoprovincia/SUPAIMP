@@ -1,5 +1,7 @@
+
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.FileProviders;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using supai_mp.Data;
@@ -78,7 +80,6 @@ builder.Services.AddAuthorization(options =>
             PerfisUsuario.Administrador);
     });
 
-
     // ============================================================
     // ADMINISTRADOR + GESTOR
     // ============================================================
@@ -89,7 +90,6 @@ builder.Services.AddAuthorization(options =>
             PerfisUsuario.Administrador,
             PerfisUsuario.Gestor);
     });
-
 
     // ============================================================
     // CONSULTA GERAL
@@ -105,7 +105,6 @@ builder.Services.AddAuthorization(options =>
             PerfisUsuario.Consultor);
     });
 
-
     // ============================================================
     // SEGURANÇA PESSOAL
     // ============================================================
@@ -117,7 +116,6 @@ builder.Services.AddAuthorization(options =>
             PerfisUsuario.Gestor,
             PerfisUsuario.TecnicoSP);
     });
-
 
     // ============================================================
     // PROTECÇÃO DE OBJECTOS
@@ -131,7 +129,6 @@ builder.Services.AddAuthorization(options =>
             PerfisUsuario.TecnicoPO);
     });
 
-
     // ============================================================
     // TRANSFERÊNCIA / RETIRADA — SEGURANÇA PESSOAL
     // ============================================================
@@ -143,7 +140,6 @@ builder.Services.AddAuthorization(options =>
             PerfisUsuario.Gestor,
             PerfisUsuario.TecnicoSP);
     });
-
 
     // ============================================================
     // TRANSFERÊNCIA / RETIRADA — PROTECÇÃO DE OBJECTOS
@@ -162,9 +158,14 @@ builder.Services.AddAuthorization(options =>
 // JWT
 // ============================================================
 
-var jwtKey = builder.Configuration["Jwt:Key"];
-var jwtIssuer = builder.Configuration["Jwt:Issuer"];
-var jwtAudience = builder.Configuration["Jwt:Audience"];
+var jwtKey =
+    builder.Configuration["Jwt:Key"];
+
+var jwtIssuer =
+    builder.Configuration["Jwt:Issuer"];
+
+var jwtAudience =
+    builder.Configuration["Jwt:Audience"];
 
 if (string.IsNullOrWhiteSpace(jwtKey))
 {
@@ -194,32 +195,62 @@ builder.Services.AddAuthentication(
         options.TokenValidationParameters =
             new TokenValidationParameters
             {
-                // Chave de assinatura
+                // ====================================================
+                // CHAVE DE ASSINATURA
+                // ====================================================
+
                 ValidateIssuerSigningKey = true,
 
                 IssuerSigningKey =
                     new SymmetricSecurityKey(
                         Encoding.UTF8.GetBytes(jwtKey)),
 
-                // Issuer
+                // ====================================================
+                // ISSUER
+                // ====================================================
+
                 ValidateIssuer = true,
-                ValidIssuer = jwtIssuer,
 
-                // Audience
+                ValidIssuer =
+                    jwtIssuer,
+
+                // ====================================================
+                // AUDIENCE
+                // ====================================================
+
                 ValidateAudience = true,
-                ValidAudience = jwtAudience,
 
-                // Expiração
+                ValidAudience =
+                    jwtAudience,
+
+                // ====================================================
+                // EXPIRAÇÃO
+                // ====================================================
+
                 ValidateLifetime = true,
-                ClockSkew = TimeSpan.Zero,
 
-                // Role
-                RoleClaimType = ClaimTypes.Role,
+                ClockSkew =
+                    TimeSpan.Zero,
 
-                // Utilizador autenticado
-                NameClaimType = ClaimTypes.Name
+                // ====================================================
+                // ROLE
+                // ====================================================
+
+                RoleClaimType =
+                    ClaimTypes.Role,
+
+                // ====================================================
+                // UTILIZADOR AUTENTICADO
+                // ====================================================
+
+                NameClaimType =
+                    ClaimTypes.Name
             };
     });
+
+// ============================================================
+// BUILD
+// ============================================================
 
 var app = builder.Build();
 
@@ -231,9 +262,9 @@ var app = builder.Build();
 //{
 //    var db = scope.ServiceProvider
 //        .GetRequiredService<ApplicationDbContext>();
-
+//
 //    await db.Database.MigrateAsync();
-
+//
 //    await OrganizacaoSeed.SeedAsync(db);
 //}
 
@@ -242,6 +273,7 @@ var app = builder.Build();
 // ============================================================
 
 app.UseSwagger();
+
 app.UseSwaggerUI();
 
 // ============================================================
@@ -251,40 +283,63 @@ app.UseSwaggerUI();
 app.UseHttpsRedirection();
 
 // ============================================================
-// FOTOGRAFIAS NO VOLUME DO RAILWAY
+// FOTOGRAFIAS
 // ============================================================
 
-var fotosPath = Environment.GetEnvironmentVariable("FOTOS_PATH");
+// Primeiro verifica se existe uma variável
+// FOTOS_PATH no ambiente.
+//
+// Se não existir, utiliza:
+// /app/wwwroot/fotos
+//
+// No Railway, app.Environment.ContentRootPath
+// normalmente corresponde à raiz da aplicação.
+
+var fotosPath =
+    Environment.GetEnvironmentVariable("FOTOS_PATH");
 
 if (string.IsNullOrWhiteSpace(fotosPath))
 {
-    fotosPath = Path.Combine(
-        Directory.GetCurrentDirectory(),
-        "wwwroot",
-        "fotos");
+    fotosPath =
+        Path.Combine(
+            app.Environment.ContentRootPath,
+            "wwwroot",
+            "fotos");
 }
 
-if (!Directory.Exists(fotosPath))
-{
-    Directory.CreateDirectory(fotosPath);
-}
+// Garante que a pasta existe.
+Directory.CreateDirectory(
+    fotosPath);
 
-app.UseStaticFiles();
+// Disponibiliza:
+//
+// /fotos/nome-do-arquivo.jpg
+//
+// apontando para:
+//
+// fotosPath/nome-do-arquivo.jpg
 
-app.UseStaticFiles(new StaticFileOptions
-{
-    FileProvider =
-        new Microsoft.Extensions.FileProviders.PhysicalFileProvider(
-            fotosPath),
+app.UseStaticFiles(
+    new StaticFileOptions
+    {
+        FileProvider =
+            new PhysicalFileProvider(
+                fotosPath),
 
-    RequestPath = "/fotos"
-});
+        RequestPath =
+            "/fotos"
+    });
 
 // ============================================================
-// AUTENTICAÇÃO E AUTORIZAÇÃO
+// AUTENTICAÇÃO
 // ============================================================
 
 app.UseAuthentication();
+
+// ============================================================
+// AUTORIZAÇÃO
+// ============================================================
+
 app.UseAuthorization();
 
 // ============================================================
@@ -292,5 +347,9 @@ app.UseAuthorization();
 // ============================================================
 
 app.MapControllers();
+
+// ============================================================
+// EXECUÇÃO
+// ============================================================
 
 app.Run();
