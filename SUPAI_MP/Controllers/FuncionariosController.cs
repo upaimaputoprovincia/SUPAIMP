@@ -472,10 +472,11 @@ namespace supai_mp.Controllers
 
             return Ok(new
             {
-                mensagem =
-                    "Fotografia atualizada com sucesso.",
-                fotografiaUrl =
-                    funcionario.FotografiaUrl
+                mensagem = "Fotografia atualizada com sucesso.",
+                fotografiaUrl = funcionario.FotografiaUrl,
+                caminhoFisico = caminhoNovo,
+                ficheiroExiste = System.IO.File.Exists(caminhoNovo),
+                tamanho = ficheiro.Length
             });
         }
 
