@@ -847,7 +847,12 @@ namespace supai_mp.Controllers
         // GET: api/Funcionarios/paginado
         // ============================================================
 
-        [Authorize(Roles = PerfisUsuario.Administrador)]
+        [Authorize(
+    Roles =
+        PerfisUsuario.Administrador + "," +
+        PerfisUsuario.Gestor + "," +
+        PerfisUsuario.Supervisor + "," +
+        PerfisUsuario.Consultor)]
         [HttpGet("paginado")]
         public async Task<IActionResult> GetFuncionariosPaginado(
             [FromQuery] int page = 1,
