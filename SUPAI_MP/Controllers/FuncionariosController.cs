@@ -99,18 +99,6 @@ namespace supai_mp.Controllers
             };
         }
 
-        private IQueryable<Funcionario> AplicarOrdenacaoGlobal(
-            IQueryable<Funcionario> query)
-        {
-            return query
-                .OrderBy(f => OrdemGrupoChefia(f))
-                .ThenBy(f => OrdemChefia(f))
-                .ThenBy(f => OrdemCategoria(f.Categoria))
-                .ThenBy(
-                    f => f.NomeCompleto,
-                    StringComparer.CurrentCultureIgnoreCase);
-        }
-
         private static int ObterOrdemChefiaMemoria(Funcionario f)
         {
             return OrdemChefia(f);
@@ -154,8 +142,15 @@ namespace supai_mp.Controllers
                 .AsQueryable();
 
             var funcionarios =
-                await AplicarOrdenacaoGlobal(query)
-                    .ToListAsync();
+                await query.ToListAsync();
+
+            // A ordenação contém regras C# próprias do SUPAI-MP.
+            // Ela é aplicada somente depois de materializar os dados,
+            // evitando que o Entity Framework tente traduzir os métodos
+            // de ordenação personalizados para SQL.
+
+            funcionarios =
+                OrdenarFuncionariosEmMemoria(funcionarios);
 
             return Ok(funcionarios);
         }
@@ -321,8 +316,10 @@ namespace supai_mp.Controllers
                 .AsQueryable();
 
             var funcionarios =
-                await AplicarOrdenacaoGlobal(query)
-                    .ToListAsync();
+                await query.ToListAsync();
+
+            funcionarios =
+                OrdenarFuncionariosEmMemoria(funcionarios);
 
             return Ok(funcionarios);
         }
@@ -616,8 +613,10 @@ namespace supai_mp.Controllers
             }
 
             var funcionarios =
-                await AplicarOrdenacaoGlobal(query)
-                    .ToListAsync();
+                await query.ToListAsync();
+
+            funcionarios =
+                OrdenarFuncionariosEmMemoria(funcionarios);
 
             return Ok(funcionarios);
         }
@@ -850,63 +849,145 @@ namespace supai_mp.Controllers
         [Authorize(Roles = PerfisUsuario.Administrador)]
         [HttpGet("paginado")]
         public async Task<IActionResult> GetFuncionariosPaginado(
-            int page = 1,
-            int pageSize = 20,
-            string? nome = null)
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 20,
+            [FromQuery] string? nome = null,
+            [FromQuery] int? pagina = null,
+            [FromQuery] int? tamanhoPagina = null)
         {
+            // Compatibilidade com o MVC:
+            // /api/Funcionarios/paginado?pagina=1&tamanhoPagina=20
+            if (pagina.HasValue)
+                page = pagina.Value;
+
+            if (tamanhoPagina.HasValue)
+                pageSize = tamanhoPagina.Value;
+
             if (page < 1)
                 page = 1;
 
             if (pageSize < 1)
                 pageSize = 20;
 
-            if (pageSize > 200)
-                pageSize = 200;
+            if (pageSize > 100)
+                pageSize = 100;
 
-            var query =
-                _context.Funcionarios
-                    .AsNoTracking()
-                    .AsQueryable();
+            nome = nome?.Trim();
+
+            // ============================================================
+            // CARREGAR OS FUNCIONÁRIOS
+            // ============================================================
+            //
+            // Esta versão evita GroupBy/Count múltiplos e projeções
+            // complexas diretamente no MySQL. A versão anterior podia
+            // provocar HTTP 500 durante a gestão de funcionários,
+            // dependendo da tradução EF/Pomelo da consulta.
+            //
+            // ============================================================
+
+            var query = _context.Funcionarios
+                .AsNoTracking()
+                .AsQueryable();
 
             if (!string.IsNullOrWhiteSpace(nome))
             {
-                nome = nome.Trim();
-
                 query = query.Where(f =>
+                    f.NomeCompleto != null &&
                     f.NomeCompleto.Contains(nome));
             }
 
-            var total =
-                await query.CountAsync();
+            var todosFuncionarios =
+                await query.ToListAsync();
+
+            // ============================================================
+            // ORDENAR EM MEMÓRIA
+            // ============================================================
+
+            todosFuncionarios =
+                OrdenarFuncionariosEmMemoria(todosFuncionarios);
+
+            // ============================================================
+            // ESTATÍSTICAS EM MEMÓRIA
+            // ============================================================
+
+            var total = todosFuncionarios.Count;
 
             var totalMasculino =
-                await query.CountAsync(
-                    f => f.G == Genero.M);
+                todosFuncionarios.Count(f =>
+                    f.G == Genero.M);
 
             var totalFeminino =
-                await query.CountAsync(
-                    f => f.G == Genero.F);
+                todosFuncionarios.Count(f =>
+                    f.G == Genero.F);
 
             var totalAtivos =
-                await query.CountAsync(
-                    f =>
-                        f.Estado ==
-                        EstadoFuncionario.ACTIVO);
+                todosFuncionarios.Count(f =>
+                    f.Estado == EstadoFuncionario.ACTIVO);
 
             var totalPorCategoria =
-                await query
+                todosFuncionarios
                     .GroupBy(f => f.Categoria)
                     .Select(g => new
                     {
                         Categoria = g.Key,
                         Quantidade = g.Count()
                     })
-                    .ToListAsync();
+                    .OrderBy(x => x.Categoria)
+                    .ToList();
 
-            var funcionarios =
-                await AplicarOrdenacaoGlobal(query)
+            var totalPaginas =
+                total == 0
+                    ? 0
+                    : (int)Math.Ceiling(
+                        total / (double)pageSize);
+
+            // Se a página solicitada ultrapassar o total,
+            // regressar à última página válida.
+            if (totalPaginas > 0 && page > totalPaginas)
+                page = totalPaginas;
+
+            if (totalPaginas == 0)
+                page = 1;
+
+            // ============================================================
+            // PAGINAÇÃO EM MEMÓRIA
+            // ============================================================
+
+            var funcionariosPagina =
+                todosFuncionarios
                     .Skip((page - 1) * pageSize)
                     .Take(pageSize)
+                    .ToList();
+
+            // ============================================================
+            // VERIFICAR QUAIS POSSUEM USUÁRIO
+            // ============================================================
+
+            var idsPagina =
+                funcionariosPagina
+                    .Select(f => f.Id)
+                    .ToList();
+
+            var idsComUsuario =
+                idsPagina.Count == 0
+                    ? new HashSet<int>()
+                    : (await _context.Usuarios
+                        .AsNoTracking()
+                        .Where(u =>
+                            u.FuncionarioId.HasValue &&
+                            idsPagina.Contains(
+                                u.FuncionarioId.Value))
+                        .Select(u =>
+                            u.FuncionarioId!.Value)
+                        .ToListAsync())
+                        .ToHashSet();
+
+            // ============================================================
+            // PROJEÇÃO FINAL
+            // ============================================================
+
+            var funcionarios =
+                funcionariosPagina
                     .Select(f => new
                     {
                         f.Id,
@@ -937,21 +1018,27 @@ namespace supai_mp.Controllers
                         f.SeccaoId,
 
                         TemUsuario =
-                            _context.Usuarios.Any(
-                                u =>
-                                    u.FuncionarioId ==
-                                    f.Id)
+                            idsComUsuario.Contains(f.Id)
                     })
-                    .ToListAsync();
+                    .ToList();
+
+            // ============================================================
+            // RESPOSTA
+            // ============================================================
 
             return Ok(new
             {
                 page,
                 pageSize,
+
+                // Nomes usados pela versão atual do MVC.
                 total,
-                totalPaginas =
-                    (int)Math.Ceiling(
-                        total / (double)pageSize),
+                totalPaginas,
+
+                // Nomes antigos mantidos por compatibilidade.
+                pagina = page,
+                tamanhoPagina = pageSize,
+                totalRegistros = total,
 
                 estatisticas = new
                 {
@@ -1520,8 +1607,33 @@ namespace supai_mp.Controllers
                         f.SeccaoId == null)
                     .AsQueryable();
 
+            var entidades =
+                await query.ToListAsync();
+
+            entidades =
+                OrdenarFuncionariosEmMemoria(entidades);
+
+            var idsFuncionarios =
+                entidades
+                    .Select(f => f.Id)
+                    .ToList();
+
+            var idsComUsuario =
+                idsFuncionarios.Count == 0
+                    ? new HashSet<int>()
+                    : (await _context.Usuarios
+                        .AsNoTracking()
+                        .Where(u =>
+                            u.FuncionarioId.HasValue &&
+                            idsFuncionarios.Contains(
+                                u.FuncionarioId.Value))
+                        .Select(u =>
+                            u.FuncionarioId!.Value)
+                        .ToListAsync())
+                        .ToHashSet();
+
             var funcionarios =
-                await AplicarOrdenacaoGlobal(query)
+                entidades
                     .Select(f => new
                     {
                         f.Id,
@@ -1537,14 +1649,11 @@ namespace supai_mp.Controllers
                         f.FotografiaUrl,
 
                         TemUsuario =
-                            _context.Usuarios.Any(
-                                u =>
-                                    u.FuncionarioId ==
-                                    f.Id),
+                            idsComUsuario.Contains(f.Id),
 
                         f.SeccaoId
                     })
-                    .ToListAsync();
+                    .ToList();
 
             return Ok(funcionarios);
         }
@@ -1580,9 +1689,14 @@ namespace supai_mp.Controllers
                             seccaoId.Value);
             }
 
+            var entidades =
+                await consulta.ToListAsync();
+
+            entidades =
+                OrdenarFuncionariosEmMemoria(entidades);
+
             var funcionarios =
-                await AplicarOrdenacaoGlobal(
-                        consulta)
+                entidades
                     .Select(f => new
                     {
                         f.Id,
@@ -1605,7 +1719,7 @@ namespace supai_mp.Controllers
                                 ? f.Seccao.Nome
                                 : null
                     })
-                    .ToListAsync();
+                    .ToList();
 
             return Ok(funcionarios);
         }
