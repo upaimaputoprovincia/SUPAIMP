@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Authorization;
+﻿
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using supai_mp.Data;
@@ -21,8 +22,6 @@ namespace supai_mp.Controllers
         private const int SECCAO_PROTECCAO_OBJECTOS = 7;
 
         // Tipos de Unidade Operacional
-        // 1 = Companhia
-        // 2 = Pelotão
         private const int TIPO_COMPANHIA = 1;
         private const int TIPO_PELOTAO = 2;
 
@@ -131,11 +130,8 @@ namespace supai_mp.Controllers
                 .Select(p => new PostoListaDto
                 {
                     Id = p.Id,
-
                     Codigo = p.Codigo,
-
                     Nome = p.Nome,
-
                     Localizacao = p.Localizacao,
 
                     SeccaoId = p.SeccaoId,
@@ -159,9 +155,7 @@ namespace supai_mp.Controllers
                             : null,
 
                     Descricao = p.Descricao,
-
                     Ativo = p.Ativo,
-
                     DataCadastro = p.DataCadastro
                 })
                 .OrderBy(p => p.Seccao)
@@ -176,8 +170,7 @@ namespace supai_mp.Controllers
         // ============================================================
 
         [HttpGet("{id:int}")]
-        public async Task<ActionResult<PostoDetalheDto>> GetPosto(
-            int id)
+        public async Task<ActionResult<PostoDetalheDto>> GetPosto(int id)
         {
             var posto = await _context.Postos
                 .AsNoTracking()
@@ -185,11 +178,8 @@ namespace supai_mp.Controllers
                 .Select(p => new PostoDetalheDto
                 {
                     Id = p.Id,
-
                     Codigo = p.Codigo,
-
                     Nome = p.Nome,
-
                     Localizacao = p.Localizacao,
 
                     SeccaoId = p.SeccaoId,
@@ -213,9 +203,7 @@ namespace supai_mp.Controllers
                             : null,
 
                     Descricao = p.Descricao,
-
                     Ativo = p.Ativo,
-
                     DataCadastro = p.DataCadastro,
 
                     Lotacoes = p.Lotacoes
@@ -296,11 +284,8 @@ namespace supai_mp.Controllers
                 .Select(p => new PostoListaDto
                 {
                     Id = p.Id,
-
                     Codigo = p.Codigo,
-
                     Nome = p.Nome,
-
                     Localizacao = p.Localizacao,
 
                     SeccaoId = p.SeccaoId,
@@ -324,9 +309,7 @@ namespace supai_mp.Controllers
                             : null,
 
                     Descricao = p.Descricao,
-
                     Ativo = p.Ativo,
-
                     DataCadastro = p.DataCadastro
                 })
                 .OrderBy(p => p.Nome)
@@ -362,11 +345,8 @@ namespace supai_mp.Controllers
                 .Select(p => new PostoListaDto
                 {
                     Id = p.Id,
-
                     Codigo = p.Codigo,
-
                     Nome = p.Nome,
-
                     Localizacao = p.Localizacao,
 
                     SeccaoId = p.SeccaoId,
@@ -390,9 +370,7 @@ namespace supai_mp.Controllers
                             : null,
 
                     Descricao = p.Descricao,
-
                     Ativo = p.Ativo,
-
                     DataCadastro = p.DataCadastro
                 })
                 .OrderBy(p => p.Nome)
@@ -430,11 +408,8 @@ namespace supai_mp.Controllers
                 .Select(p => new PostoListaDto
                 {
                     Id = p.Id,
-
                     Codigo = p.Codigo,
-
                     Nome = p.Nome,
-
                     Localizacao = p.Localizacao,
 
                     SeccaoId = p.SeccaoId,
@@ -458,9 +433,7 @@ namespace supai_mp.Controllers
                             : null,
 
                     Descricao = p.Descricao,
-
                     Ativo = p.Ativo,
-
                     DataCadastro = p.DataCadastro
                 })
                 .OrderBy(p => p.Nome)
@@ -616,7 +589,6 @@ namespace supai_mp.Controllers
             var novoPosto = new Posto
             {
                 Codigo = codigo,
-
                 Nome = nome,
 
                 Localizacao =
@@ -980,10 +952,6 @@ namespace supai_mp.Controllers
             // ========================================================
             // ACTIVAÇÃO
             // ========================================================
-            //
-            // Antes de activar, confirmamos que a estrutura do posto
-            // continua válida.
-            // ========================================================
 
             var unidadeValidacao =
                 await ValidarUnidadeOperacionalPosto(
@@ -1062,24 +1030,26 @@ namespace supai_mp.Controllers
         }
 
         // ============================================================
-        // VALIDAÇÃO DA UNIDADE OPERACIONAL DO POSTO
+        // VALIDAR UNIDADE OPERACIONAL DO POSTO
         // ============================================================
         //
-        // Esta validação é especialmente importante para a
-        // Protecção de Objectos.
+        // NOVA ESTRUTURA DA PROTECÇÃO DE OBJECTOS:
         //
-        // Estrutura obrigatória:
+        //     Protecção de Objectos
+        //              │
+        //       ┌──────┴──────┐
+        //       │             │
+        //   Companhia     Companhia
+        //       │
+        //   ┌───┼───┐
+        //   │   │   │
+        // Posto Posto Posto
         //
-        // Secção 7
-        //    ↓
-        // Companhia (Tipo 1)
-        //    ↓
-        // Pelotão (Tipo 2)
-        //    ↓
-        // Posto
+        // Os Pelotões NÃO são pais dos Postos.
         //
-        // Para outras secções, mantemos a regra geral:
-        // a unidade deve existir e pertencer à mesma secção.
+        // Os Pelotões continuam a existir como unidades operacionais
+        // da Companhia e serão usados posteriormente pela lógica
+        // diária de rotação da escala.
         // ============================================================
 
         private async Task<string?> ValidarUnidadeOperacionalPosto(
@@ -1087,7 +1057,7 @@ namespace supai_mp.Controllers
             int? unidadeOperacionalId)
         {
             // --------------------------------------------------------
-            // Sem unidade operacional
+            // Posto sem unidade operacional
             // --------------------------------------------------------
 
             if (!unidadeOperacionalId.HasValue)
@@ -1134,7 +1104,6 @@ namespace supai_mp.Controllers
             }
 
             // ========================================================
-            // REGRA ESPECIAL:
             // PROTECÇÃO DE OBJECTOS
             // ========================================================
 
@@ -1142,69 +1111,44 @@ namespace supai_mp.Controllers
                 SECCAO_PROTECCAO_OBJECTOS)
             {
                 // ----------------------------------------------------
-                // O posto da Protecção de Objectos deve estar
-                // obrigatoriamente dentro de um PELOTÃO.
+                // REGRA NOVA:
+                //
+                // O Posto pertence DIRECTAMENTE à Companhia.
+                //
+                // Não aceitamos:
+                //     Companhia -> Pelotão -> Posto
+                //
+                // Aceitamos:
+                //     Companhia -> Posto
                 // ----------------------------------------------------
 
-                if (unidade.Tipo != UnidadeOperacional.TipoUnidadeOperacional.Pelotao)
+                if (unidade.Tipo !=
+                    UnidadeOperacional.TipoUnidadeOperacional.Companhia)
                 {
                     return
-                        "Na Protecção de Objectos, um posto deve pertencer obrigatoriamente a um pelotão.";
+                        "Na Protecção de Objectos, o Posto deve estar associado directamente a uma Companhia.";
                 }
 
                 // ----------------------------------------------------
-                // O pelotão deve ter uma Companhia como pai.
+                // A Companhia não deve possuir um pai.
                 // ----------------------------------------------------
 
-                if (!unidade.UnidadePaiId.HasValue)
+                if (unidade.UnidadePaiId.HasValue)
                 {
                     return
-                        "O pelotão seleccionado não possui uma companhia associada.";
-                }
-
-                var companhia =
-                    await _context.UnidadesOperacionais
-                        .AsNoTracking()
-                        .FirstOrDefaultAsync(
-                            u =>
-                                u.Id ==
-                                unidade.UnidadePaiId.Value);
-
-                if (companhia == null)
-                {
-                    return
-                        "A companhia do pelotão seleccionado não existe.";
+                        "A Companhia da Protecção de Objectos não deve possuir outra unidade operacional como pai.";
                 }
 
                 // ----------------------------------------------------
-                // A companhia deve estar activa.
+                // Confirmar que a unidade continua a pertencer à
+                // Secção Protecção de Objectos.
                 // ----------------------------------------------------
 
-                if (!companhia.Ativo)
-                {
-                    return
-                        "A companhia do pelotão seleccionado está desactivada.";
-                }
-
-                // ----------------------------------------------------
-                // A companhia deve pertencer à mesma secção.
-                // ----------------------------------------------------
-
-                if (companhia.SeccaoId !=
+                if (unidade.SeccaoId !=
                     SECCAO_PROTECCAO_OBJECTOS)
                 {
                     return
-                        "A companhia do pelotão não pertence à Protecção de Objectos.";
-                }
-
-                // ----------------------------------------------------
-                // O pai deve realmente ser uma Companhia.
-                // ----------------------------------------------------
-
-                if (companhia.Tipo != UnidadeOperacional.TipoUnidadeOperacional.Companhia)
-                {
-                    return
-                        "A unidade superior do pelotão seleccionado não é uma companhia válida.";
+                        "A Companhia seleccionada não pertence à Protecção de Objectos.";
                 }
             }
 

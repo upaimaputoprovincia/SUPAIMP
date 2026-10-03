@@ -372,6 +372,14 @@ namespace supai_mp.Data
                 .HasForeignKey(u => u.FuncionarioId)
                 .IsRequired(false)
                 .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<UnidadeOperacional>()
+            .HasOne(u => u.Posto)
+            .WithMany(p => p.UnidadesInternas)
+            .HasForeignKey(u => u.PostoId)
+            .OnDelete(DeleteBehavior.Restrict);
         }
+
+
     }
 }

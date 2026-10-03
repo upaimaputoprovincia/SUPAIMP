@@ -1,4 +1,5 @@
 ﻿using System.ComponentModel.DataAnnotations;
+using supai_mp.Models.Organizacao;
 
 namespace supai_mp.Models.Organizacao
 {
@@ -8,7 +9,8 @@ namespace supai_mp.Models.Organizacao
         {
             Escolta = 0,
             Companhia = 1,
-            Pelotao = 2
+            Pelotao = 2,
+            SeccaoInterna = 3
         }
 
         public int Id { get; set; }
@@ -25,6 +27,13 @@ namespace supai_mp.Models.Organizacao
 
         public int? UnidadePaiId { get; set; }
 
+        // =========================================================
+        // POSTO ASSOCIADO
+        // Usado principalmente pelas Secções Internas da
+        // Protecção de Objectos.
+        // =========================================================
+        public int? PostoId { get; set; }
+
         [StringLength(500)]
         public string? Descricao { get; set; }
 
@@ -32,9 +41,15 @@ namespace supai_mp.Models.Organizacao
 
         public DateTime DataCadastro { get; set; } = DateTime.Now;
 
+        // =========================================================
+        // NAVEGAÇÕES
+        // =========================================================
+
         public Seccao? Seccao { get; set; }
 
         public UnidadeOperacional? UnidadePai { get; set; }
+
+        public Posto? Posto { get; set; }
 
         public ICollection<UnidadeOperacional> UnidadesFilhas { get; set; }
             = new List<UnidadeOperacional>();

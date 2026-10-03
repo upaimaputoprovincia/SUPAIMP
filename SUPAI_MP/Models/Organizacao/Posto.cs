@@ -30,6 +30,10 @@ namespace supai_mp.Models.Organizacao
 
         public DateTime DataCadastro { get; set; } = DateTime.Now;
 
+        // =========================================================
+        // NAVEGAÇÕES
+        // =========================================================
+
         public Seccao? Seccao { get; set; }
 
         public Sector? Sector { get; set; }
@@ -38,5 +42,10 @@ namespace supai_mp.Models.Organizacao
 
         public ICollection<LotacaoFuncionario> Lotacoes { get; set; }
             = new List<LotacaoFuncionario>();
+
+        // Secções Internas associadas a este Posto
+        public ICollection<UnidadeOperacional> UnidadesInternas { get; set; }
+            = new List<UnidadeOperacional>();
     }
 }
+

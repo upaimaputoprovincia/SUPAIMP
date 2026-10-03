@@ -216,176 +216,226 @@ namespace supai_mp.Controllers
             };
         }
 
-        // ============================================================
-        // VALIDAR POSTO
-        // ============================================================
-        private async Task<string?> ValidarPostoAsync(
-            int? postoId,
-            int? seccaoId,
-            int? unidadeOperacionalId)
-        {
-            // --------------------------------------------------------
-            // Se não foi indicado posto, não há nada para validar.
-            // Isto permite lotações que não utilizem postos.
-            // --------------------------------------------------------
-            if (!postoId.HasValue)
-            {
-                return null;
-            }
+       
 
-            // --------------------------------------------------------
-            // LOCALIZAR POSTO
-            // --------------------------------------------------------
+// --------------------------------------------------------
+// VALIDAR POSTO
+// --------------------------------------------------------
+private async Task<string?> ValidarPostoAsync(
+    int? postoId,
+    int? seccaoId,
+    int? unidadeOperacionalId)
+        {
+            // ============================================================
+            // SEM POSTO
+            // ============================================================
+
+            if (!postoId.HasValue)
+                return null;
+
+            // ============================================================
+            // PROCURAR POSTO
+            // ============================================================
+
             var posto = await _context.Postos
                 .AsNoTracking()
-                .FirstOrDefaultAsync(x => x.Id == postoId.Value);
+                .FirstOrDefaultAsync(p =>
+                    p.Id == postoId.Value);
 
             if (posto == null)
             {
-                return "Posto não encontrado.";
+                return "O posto indicado não existe.";
             }
 
-            // --------------------------------------------------------
-            // POSTO TEM DE ESTAR ACTIVO
-            // --------------------------------------------------------
             if (!posto.Ativo)
             {
-                return "O posto selecionado está inativo.";
+                return "O posto indicado está desactivado.";
             }
 
-            // --------------------------------------------------------
-            // VALIDAR SECÇÃO
-            // --------------------------------------------------------
-            if (seccaoId.HasValue &&
-                posto.SeccaoId != seccaoId.Value)
+            // ============================================================
+            // A SECÇÃO DA LOTAÇÃO É OBRIGATÓRIA
+            // ============================================================
+
+            if (!seccaoId.HasValue)
             {
-                return "O posto selecionado não pertence à secção indicada.";
+                return "A secção da lotação é obrigatória.";
             }
 
-            // --------------------------------------------------------
-            // VALIDAR UNIDADE OPERACIONAL
-            // --------------------------------------------------------
-            if (unidadeOperacionalId.HasValue &&
-                posto.UnidadeOperacionalId != unidadeOperacionalId.Value)
+            // ============================================================
+            // MESMA SECÇÃO
+            // ============================================================
+
+            if (posto.SeccaoId != seccaoId.Value)
             {
-                return "O posto selecionado não pertence à unidade operacional indicada.";
+                return
+                    "O posto indicado não pertence à mesma secção da lotação.";
             }
 
-            // ========================================================
-            // REGRAS ESPECÍFICAS DA PROTECÇÃO DE OBJECTOS
-            // ========================================================
-            if (seccaoId == SECCAO_PROTECCAO_OBJECTOS)
+            // ============================================================
+            // PROTECÇÃO DE OBJECTOS
+            // ============================================================
+
+            if (seccaoId.Value == SECCAO_PROTECCAO_OBJECTOS)
             {
-                // ----------------------------------------------------
-                // POSTO DE PO DEVE TER PELOTÃO
-                // ----------------------------------------------------
+                // --------------------------------------------------------
+                // O Posto deve possuir uma Companhia directamente associada.
+                //
+                // NOVA ESTRUTURA:
+                //
+                // Protecção de Objectos
+                //       ↓
+                //   Companhia
+                //       ↓
+                //     Posto
+                // --------------------------------------------------------
+
                 if (!posto.UnidadeOperacionalId.HasValue)
                 {
                     return
-                        "Na Protecção de Objectos, o posto deve estar " +
-                        "associado a um pelotão.";
+                        "O posto da Protecção de Objectos deve estar associado directamente a uma Companhia.";
                 }
 
-                // ----------------------------------------------------
-                // CARREGAR PELOTÃO
-                // ----------------------------------------------------
-                var pelotao = await _context.UnidadesOperacionais
-                    .AsNoTracking()
-                    .FirstOrDefaultAsync(x =>
-                        x.Id == posto.UnidadeOperacionalId.Value);
+                var companhiaPosto =
+                    await _context.UnidadesOperacionais
+                        .AsNoTracking()
+                        .FirstOrDefaultAsync(u =>
+                            u.Id == posto.UnidadeOperacionalId.Value);
 
-                if (pelotao == null)
+                if (companhiaPosto == null)
                 {
                     return
-                        "O pelotão associado ao posto não foi encontrado.";
+                        "A companhia associada ao posto não existe.";
                 }
 
-                // ----------------------------------------------------
-                // PELOTÃO ACTIVO
-                // ----------------------------------------------------
-                if (!pelotao.Ativo)
+                if (!companhiaPosto.Ativo)
                 {
                     return
-                        "O pelotão associado ao posto está inativo.";
+                        "A companhia associada ao posto está desactivada.";
                 }
 
-                // ----------------------------------------------------
-                // PELOTÃO DEVE PERTENCER À PO
-                // ----------------------------------------------------
-                if (pelotao.SeccaoId != SECCAO_PROTECCAO_OBJECTOS)
+                if (companhiaPosto.SeccaoId !=
+                    SECCAO_PROTECCAO_OBJECTOS)
                 {
                     return
-                        "O pelotão associado ao posto não pertence à " +
-                        "Protecção de Objectos.";
+                        "A companhia associada ao posto não pertence à Protecção de Objectos.";
                 }
 
-                // ----------------------------------------------------
-                // PELOTÃO DEVE SER DO TIPO PELOTÃO
-                // ----------------------------------------------------
-                if (pelotao.Tipo !=
-                    UnidadeOperacional.TipoUnidadeOperacional.Pelotao)
-                {
-                    return
-                        "A unidade operacional associada ao posto não é " +
-                        "um pelotão válido.";
-                }
-
-                // ----------------------------------------------------
-                // PELOTÃO DEVE TER COMPANHIA PAI
-                // ----------------------------------------------------
-                if (!pelotao.UnidadePaiId.HasValue)
-                {
-                    return
-                        "O pelotão associado ao posto não possui uma " +
-                        "companhia pai.";
-                }
-
-                // ----------------------------------------------------
-                // CARREGAR COMPANHIA
-                // ----------------------------------------------------
-                var companhia = await _context.UnidadesOperacionais
-                    .AsNoTracking()
-                    .FirstOrDefaultAsync(x =>
-                        x.Id == pelotao.UnidadePaiId.Value);
-
-                if (companhia == null)
-                {
-                    return
-                        "A companhia associada ao pelotão não foi encontrada.";
-                }
-
-                // ----------------------------------------------------
-                // COMPANHIA ACTIVA
-                // ----------------------------------------------------
-                if (!companhia.Ativo)
-                {
-                    return
-                        "A companhia associada ao pelotão está inativa.";
-                }
-
-                // ----------------------------------------------------
-                // COMPANHIA DEVE PERTENCER À PO
-                // ----------------------------------------------------
-                if (companhia.SeccaoId != SECCAO_PROTECCAO_OBJECTOS)
-                {
-                    return
-                        "A companhia associada ao pelotão não pertence à " +
-                        "Protecção de Objectos.";
-                }
-
-                // ----------------------------------------------------
-                // COMPANHIA DEVE SER DO TIPO COMPANHIA
-                // ----------------------------------------------------
-                if (companhia.Tipo !=
+                if (companhiaPosto.Tipo !=
                     UnidadeOperacional.TipoUnidadeOperacional.Companhia)
                 {
                     return
-                        "A unidade pai do pelotão não é uma companhia válida.";
+                        "A unidade associada ao posto deve ser uma Companhia.";
                 }
+
+                // ========================================================
+                // VALIDAR UNIDADE DA LOTAÇÃO
+                // ========================================================
+
+                if (unidadeOperacionalId.HasValue)
+                {
+                    var unidadeLotacao =
+                        await _context.UnidadesOperacionais
+                            .AsNoTracking()
+                            .FirstOrDefaultAsync(u =>
+                                u.Id == unidadeOperacionalId.Value);
+
+                    if (unidadeLotacao == null)
+                    {
+                        return
+                            "A unidade operacional da lotação não existe.";
+                    }
+
+                    if (!unidadeLotacao.Ativo)
+                    {
+                        return
+                            "A unidade operacional da lotação está desactivada.";
+                    }
+
+                    // ----------------------------------------------------
+                    // PELOTÃO
+                    //
+                    // Pelotão → Companhia → Posto
+                    //
+                    // A Companhia do Pelotão deve ser a mesma
+                    // Companhia à qual o Posto pertence.
+                    // ----------------------------------------------------
+
+                    if (unidadeLotacao.Tipo ==
+                        UnidadeOperacional.TipoUnidadeOperacional.Pelotao)
+                    {
+                        if (!unidadeLotacao.UnidadePaiId.HasValue)
+                        {
+                            return
+                                "O pelotão da lotação não possui uma Companhia associada.";
+                        }
+
+                        if (unidadeLotacao.UnidadePaiId.Value !=
+                            companhiaPosto.Id)
+                        {
+                            return
+                                "O posto indicado pertence a uma Companhia diferente da Companhia do pelotão da lotação.";
+                        }
+                    }
+
+                    // ----------------------------------------------------
+                    // COMPANHIA
+                    //
+                    // Companhia → Posto
+                    // ----------------------------------------------------
+
+                    else if (unidadeLotacao.Tipo ==
+                             UnidadeOperacional.TipoUnidadeOperacional.Companhia)
+                    {
+                        if (unidadeLotacao.Id !=
+                            companhiaPosto.Id)
+                        {
+                            return
+                                "O posto indicado pertence a uma Companhia diferente da Companhia da lotação.";
+                        }
+                    }
+
+                    // ----------------------------------------------------
+                    // OUTRO TIPO
+                    // ----------------------------------------------------
+
+                    else
+                    {
+                        return
+                            "Na Protecção de Objectos, a lotação deve estar associada a uma Companhia ou a um Pelotão.";
+                    }
+                }
+
+                // --------------------------------------------------------
+                // IMPORTANTE:
+                //
+                // Não verificamos:
+                //
+                //     Posto → Pelotão
+                //
+                // porque a nova estrutura é:
+                //
+                //     Companhia
+                //          ↓
+                //        Posto
+                //          ↑
+                //       Pelotão
+                //
+                // O Pelotão representa a unidade de efectivos que entra
+                // em serviço.
+                //
+                // O Posto representa a posição operacional ocupada.
+                //
+                // A distribuição diária será determinada posteriormente
+                // pela Escala.
+                // --------------------------------------------------------
             }
 
             return null;
         }
+
+
+
+
 
         // ============================================================
         // MÉTODO AUXILIAR — CALCULAR ESTADO DO POSTO
@@ -684,7 +734,22 @@ namespace supai_mp.Controllers
                 .Include(x => x.Posto)
                 .Include(x => x.FuncaoOperacional)
                 .Include(x => x.TipoTurno)
-                .OrderBy(x => x.Equipa!.Nome)
+                .OrderBy(x =>
+    x.UnidadeOperacional != null
+        ? x.UnidadeOperacional.Nome
+        : "")
+.ThenBy(x =>
+    x.Equipa != null
+        ? x.Equipa.Nome
+        : "")
+.ThenBy(x =>
+    x.Posto != null
+        ? x.Posto.Nome
+        : "")
+.ThenBy(x =>
+    x.Funcionario != null
+        ? x.Funcionario.NomeCompleto
+        : "")
                 .ThenBy(x => x.Funcionario!.NomeCompleto)
                 .ToListAsync();
 
