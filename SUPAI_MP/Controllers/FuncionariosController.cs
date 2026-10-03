@@ -991,20 +991,21 @@ namespace supai_mp.Controllers
         // GET: api/Funcionarios/paginado
         // ============================================================
 
-        [Authorize(
-     Roles =
-         PerfisUsuario.Administrador + "," +
-         PerfisUsuario.Gestor + "," +
-         PerfisUsuario.Supervisor + "," +
-         PerfisUsuario.Consultor)]
-        [HttpGet("paginado")]
-        public async Task<IActionResult> GetFuncionariosPaginado(
-     [FromQuery] int page = 1,
-     [FromQuery] int pageSize = 20,
-     [FromQuery] string? nome = null,
-     [FromQuery] int? pagina = null,
-     [FromQuery] int? tamanhoPagina = null)
-        {
+       
+    [Authorize(
+        Roles =
+            PerfisUsuario.Administrador + "," +
+            PerfisUsuario.Gestor + "," +
+            PerfisUsuario.Supervisor + "," +
+            PerfisUsuario.Consultor)]
+    [HttpGet("paginado")]
+    public async Task<IActionResult> GetFuncionariosPaginado(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20,
+        [FromQuery] string? nome = null,
+        [FromQuery] int? pagina = null,
+        [FromQuery] int? tamanhoPagina = null)
+            {
             // ============================================================
             // VALIDAR ACESSO AO EFECTIVO
             // ============================================================
@@ -1015,8 +1016,10 @@ namespace supai_mp.Controllers
             if (erroAutorizacao != null)
                 return erroAutorizacao;
 
-            // Compatibilidade com o MVC:
-            // /api/Funcionarios/paginado?pagina=1&tamanhoPagina=20
+            // ============================================================
+            // COMPATIBILIDADE COM O MVC
+            // ============================================================
+
             if (pagina.HasValue)
                 page = pagina.Value;
 
@@ -1035,14 +1038,56 @@ namespace supai_mp.Controllers
             nome = nome?.Trim();
 
             // ============================================================
-            // CARREGAR OS FUNCIONÁRIOS
+            // IDENTIFICAR O UTILIZADOR AUTENTICADO
+            // ============================================================
+
+            int usuarioId = 0;
+
+            var claimId =
+                User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+            int.TryParse(claimId, out usuarioId);
+
+            var usuario =
+                usuarioId > 0
+                    ? await _context.Usuarios
+                        .AsNoTracking()
+                        .FirstOrDefaultAsync(
+                            u => u.Id == usuarioId)
+                    : null;
+
+            if (usuario == null)
+            {
+                return Unauthorized(new
+                {
+                    mensagem = "Usuário não encontrado."
+                });
+            }
+
+            // ============================================================
+            // DETERMINAR SE É UTILIZADOR INSTITUCIONAL
             // ============================================================
             //
-            // Esta versão evita GroupBy/Count múltiplos e projeções
-            // complexas diretamente no MySQL. A versão anterior podia
-            // provocar HTTP 500 durante a gestão de funcionários,
-            // dependendo da tradução EF/Pomelo da consulta.
+            // Um utilizador institucional não possui FuncionarioId.
             //
+            // Exemplo:
+            //
+            // tambajane
+            // Perfil = Consultor
+            // FuncionarioId = null
+            // UnidadeInstitucionalId = 1
+            //
+            // Este utilizador deverá ser limitado pelas permissões
+            // institucionais.
+            //
+            // ============================================================
+
+            bool utilizadorInstitucional =
+                !usuario.FuncionarioId.HasValue &&
+                usuario.UnidadeInstitucionalId.HasValue;
+
+            // ============================================================
+            // CONSULTA BASE
             // ============================================================
 
             var query = _context.Funcionarios
@@ -1050,12 +1095,154 @@ namespace supai_mp.Controllers
                 .Include(f => f.Seccao)
                 .AsQueryable();
 
+            // ============================================================
+            // ESCOPAR UTILIZADOR INSTITUCIONAL
+            // ============================================================
+
+            if (utilizadorInstitucional)
+            {
+                // --------------------------------------------------------
+                // OBTER AS UNIDADES INSTITUCIONAIS AUTORIZADAS
+                // --------------------------------------------------------
+
+                var unidadesAutorizadas =
+                    await _autorizacaoInstitucionalService
+                        .ObterUnidadesAutorizadasAsync(
+                            usuarioId,
+                            "CONSULTAR_EFECTIVO");
+
+                if (unidadesAutorizadas.Count == 0)
+                {
+                    return StatusCode(
+                        StatusCodes.Status403Forbidden,
+                        new
+                        {
+                            mensagem =
+                                "O usuário não possui nenhuma unidade " +
+                                "institucional autorizada para consultar o efectivo."
+                        });
+                }
+
+                // --------------------------------------------------------
+                // OBTER AS SECÇÕES ASSOCIADAS ÀS UNIDADES AUTORIZADAS
+                // --------------------------------------------------------
+
+                var seccoesAutorizadas =
+                    await _context.UnidadesInstitucionaisSeccoes
+                        .AsNoTracking()
+                        .Where(x =>
+                            x.Ativo &&
+                            unidadesAutorizadas.Contains(
+                                x.UnidadeInstitucionalId))
+                        .Select(x => x.SeccaoId)
+                        .Distinct()
+                        .ToListAsync();
+
+                if (seccoesAutorizadas.Count == 0)
+                {
+                    return StatusCode(
+                        StatusCodes.Status403Forbidden,
+                        new
+                        {
+                            mensagem =
+                                "A unidade institucional autorizada não possui " +
+                                "secções associadas para consulta do efectivo."
+                        });
+                }
+
+                // --------------------------------------------------------
+                // FILTRAR PELO ÂMBITO INSTITUCIONAL
+                // --------------------------------------------------------
+                //
+                // Existem duas formas de uma lotação identificar a secção:
+                //
+                // 1. LotacaoFuncionario.SeccaoId
+                //
+                // 2. LotacaoFuncionario.UnidadeOperacionalId
+                //    -> UnidadeOperacional.SeccaoId
+                //
+                // Consideramos somente lotações activas.
+                //
+                // --------------------------------------------------------
+
+                var funcionariosAutorizados =
+                    await _context.LotacoesFuncionarios
+                        .AsNoTracking()
+                        .Where(l =>
+                            l.Ativo &&
+                            (
+                                (
+                                    l.SeccaoId.HasValue &&
+                                    seccoesAutorizadas.Contains(
+                                        l.SeccaoId.Value)
+                                )
+                                ||
+                                (
+                                    l.UnidadeOperacionalId.HasValue &&
+                                    l.UnidadeOperacional != null &&
+                                    seccoesAutorizadas.Contains(
+                                        l.UnidadeOperacional.SeccaoId)
+                                )
+                            ))
+                        .Select(l => l.FuncionarioId)
+                        .Distinct()
+                        .ToListAsync();
+
+                if (funcionariosAutorizados.Count == 0)
+                {
+                    return Ok(new
+                    {
+                        page = 1,
+                        pageSize,
+
+                        total = 0,
+                        totalPaginas = 0,
+
+                        pagina = 1,
+                        tamanhoPagina = pageSize,
+                        totalRegistros = 0,
+
+                        estatisticas = new
+                        {
+                            totalMasculino = 0,
+                            totalFeminino = 0,
+                            totalAtivos = 0,
+                            totalPorCategoria =
+                                new List<object>()
+                        },
+
+                        funcionarios =
+                            new List<object>()
+                    });
+                }
+
+                // --------------------------------------------------------
+                // APLICAR O ÂMBITO À CONSULTA PRINCIPAL
+                // --------------------------------------------------------
+
+                query = query.Where(f =>
+                    funcionariosAutorizados.Contains(f.Id));
+            }
+
+            // ============================================================
+            // FILTRO POR NOME
+            // ============================================================
+
             if (!string.IsNullOrWhiteSpace(nome))
             {
                 query = query.Where(f =>
                     f.NomeCompleto != null &&
                     f.NomeCompleto.Contains(nome));
             }
+
+            // ============================================================
+            // CARREGAR FUNCIONÁRIOS
+            // ============================================================
+            //
+            // Mantemos a estratégia que já estava funcionando:
+            // carregar os dados e realizar ordenação/estatísticas em memória.
+            //
+            // ============================================================
 
             var todosFuncionarios =
                 await query.ToListAsync();
@@ -1065,13 +1252,15 @@ namespace supai_mp.Controllers
             // ============================================================
 
             todosFuncionarios =
-                OrdenarFuncionariosEmMemoria(todosFuncionarios);
+                OrdenarFuncionariosEmMemoria(
+                    todosFuncionarios);
 
             // ============================================================
-            // ESTATÍSTICAS EM MEMÓRIA
+            // ESTATÍSTICAS
             // ============================================================
 
-            var total = todosFuncionarios.Count;
+            var total =
+                todosFuncionarios.Count;
 
             var totalMasculino =
                 todosFuncionarios.Count(f =>
@@ -1096,23 +1285,24 @@ namespace supai_mp.Controllers
                     .OrderBy(x => x.Categoria)
                     .ToList();
 
+            // ============================================================
+            // PAGINAÇÃO
+            // ============================================================
+
             var totalPaginas =
                 total == 0
                     ? 0
                     : (int)Math.Ceiling(
                         total / (double)pageSize);
 
-            // Se a página solicitada ultrapassar o total,
-            // regressar à última página válida.
-            if (totalPaginas > 0 && page > totalPaginas)
+            if (totalPaginas > 0 &&
+                page > totalPaginas)
+            {
                 page = totalPaginas;
+            }
 
             if (totalPaginas == 0)
                 page = 1;
-
-            // ============================================================
-            // PAGINAÇÃO EM MEMÓRIA
-            // ============================================================
 
             var funcionariosPagina =
                 todosFuncionarios
@@ -1217,6 +1407,8 @@ namespace supai_mp.Controllers
                 funcionarios
             });
         }
+
+
 
         // ============================================================
         // POST: api/Funcionarios

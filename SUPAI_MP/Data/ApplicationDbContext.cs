@@ -40,6 +40,8 @@ namespace supai_mp.Data
 
         public DbSet<PermissaoAcesso> PermissoesAcesso { get; set; }
 
+        public DbSet<UnidadeInstitucionalSeccao> UnidadesInstitucionaisSeccoes { get; set; }
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
@@ -711,6 +713,30 @@ namespace supai_mp.Data
                     Ativo = true
                 }
             );
+
+            modelBuilder.Entity<UnidadeInstitucionalSeccao>()
+                .HasOne(x => x.UnidadeInstitucional)
+                .WithMany()
+                .HasForeignKey(x => x.UnidadeInstitucionalId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<UnidadeInstitucionalSeccao>()
+                .HasOne(x => x.Seccao)
+                .WithMany()
+                .HasForeignKey(x => x.SeccaoId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<UnidadeInstitucionalSeccao>()
+                .HasIndex(x => new
+                {
+                    x.UnidadeInstitucionalId,
+                    x.SeccaoId
+                })
+                .IsUnique();
+
+            modelBuilder.Entity<UnidadeInstitucionalSeccao>()
+                .Property(x => x.Observacao)
+                .HasMaxLength(300);
         }
 
 
