@@ -991,21 +991,21 @@ namespace supai_mp.Controllers
         // GET: api/Funcionarios/paginado
         // ============================================================
 
-       
-    [Authorize(
-        Roles =
-            PerfisUsuario.Administrador + "," +
-            PerfisUsuario.Gestor + "," +
-            PerfisUsuario.Supervisor + "," +
-            PerfisUsuario.Consultor)]
-    [HttpGet("paginado")]
-    public async Task<IActionResult> GetFuncionariosPaginado(
-        [FromQuery] int page = 1,
-        [FromQuery] int pageSize = 20,
-        [FromQuery] string? nome = null,
-        [FromQuery] int? pagina = null,
-        [FromQuery] int? tamanhoPagina = null)
-            {
+
+        [Authorize(
+         Roles =
+             PerfisUsuario.Administrador + "," +
+             PerfisUsuario.Gestor + "," +
+             PerfisUsuario.Supervisor + "," +
+             PerfisUsuario.Consultor)]
+        [HttpGet("paginado")]
+        public async Task<IActionResult> GetFuncionariosPaginado(
+         [FromQuery] int page = 1,
+         [FromQuery] int pageSize = 20,
+         [FromQuery] string? nome = null,
+         [FromQuery] int? pagina = null,
+         [FromQuery] int? tamanhoPagina = null)
+        {
             // ============================================================
             // VALIDAR ACESSO AO EFECTIVO
             // ============================================================
@@ -1068,7 +1068,10 @@ namespace supai_mp.Controllers
             // DETERMINAR SE É UTILIZADOR INSTITUCIONAL
             // ============================================================
             //
-            // Um utilizador institucional não possui FuncionarioId.
+            // Um utilizador institucional:
+            //
+            // FuncionarioId = null
+            // UnidadeInstitucionalId != null
             //
             // Exemplo:
             //
@@ -1076,9 +1079,6 @@ namespace supai_mp.Controllers
             // Perfil = Consultor
             // FuncionarioId = null
             // UnidadeInstitucionalId = 1
-            //
-            // Este utilizador deverá ser limitado pelas permissões
-            // institucionais.
             //
             // ============================================================
 
@@ -1089,6 +1089,23 @@ namespace supai_mp.Controllers
             // ============================================================
             // CONSULTA BASE
             // ============================================================
+            //
+            // IMPORTANTE:
+            //
+            // A consulta começa com TODOS os funcionários registados.
+            //
+            // Para utilizadores institucionais, o que determina o acesso
+            // é a permissão CONSULTAR_EFECTIVO.
+            //
+            // Não haverá mais filtro por:
+            //
+            // - Secção
+            // - Sector
+            // - Unidade Operacional
+            // - Posto
+            // - Lotação
+            //
+            // ============================================================
 
             var query = _context.Funcionarios
                 .AsNoTracking()
@@ -1096,15 +1113,21 @@ namespace supai_mp.Controllers
                 .AsQueryable();
 
             // ============================================================
-            // ESCOPAR UTILIZADOR INSTITUCIONAL
+            // VALIDAR ÂMBITO INSTITUCIONAL
+            // ============================================================
+            //
+            // O utilizador institucional pode consultar TODOS os
+            // funcionários se possuir a permissão CONSULTAR_EFECTIVO
+            // numa unidade institucional autorizada.
+            //
+            // A permissão continua a proteger o acesso.
+            //
+            // O que deixa de existir é o filtro por secção.
+            //
             // ============================================================
 
             if (utilizadorInstitucional)
             {
-                // --------------------------------------------------------
-                // OBTER AS UNIDADES INSTITUCIONAIS AUTORIZADAS
-                // --------------------------------------------------------
-
                 var unidadesAutorizadas =
                     await _autorizacaoInstitucionalService
                         .ObterUnidadesAutorizadasAsync(
@@ -1123,105 +1146,21 @@ namespace supai_mp.Controllers
                         });
                 }
 
-                // --------------------------------------------------------
-                // OBTER AS SECÇÕES ASSOCIADAS ÀS UNIDADES AUTORIZADAS
-                // --------------------------------------------------------
-
-                var seccoesAutorizadas =
-                    await _context.UnidadesInstitucionaisSeccoes
-                        .AsNoTracking()
-                        .Where(x =>
-                            x.Ativo &&
-                            unidadesAutorizadas.Contains(
-                                x.UnidadeInstitucionalId))
-                        .Select(x => x.SeccaoId)
-                        .Distinct()
-                        .ToListAsync();
-
-                if (seccoesAutorizadas.Count == 0)
-                {
-                    return StatusCode(
-                        StatusCodes.Status403Forbidden,
-                        new
-                        {
-                            mensagem =
-                                "A unidade institucional autorizada não possui " +
-                                "secções associadas para consulta do efectivo."
-                        });
-                }
-
-                // --------------------------------------------------------
-                // FILTRAR PELO ÂMBITO INSTITUCIONAL
-                // --------------------------------------------------------
+                // ========================================================
+                // NÃO FILTRAR FUNCIONÁRIOS POR SECÇÃO
+                // ========================================================
                 //
-                // Existem duas formas de uma lotação identificar a secção:
+                // Se chegou até aqui, significa que:
                 //
-                // 1. LotacaoFuncionario.SeccaoId
+                // 1. O utilizador é institucional;
+                // 2. Está autenticado;
+                // 3. Está activo;
+                // 4. Possui CONSULTAR_EFECTIVO;
+                // 5. Possui uma unidade institucional autorizada.
                 //
-                // 2. LotacaoFuncionario.UnidadeOperacionalId
-                //    -> UnidadeOperacional.SeccaoId
+                // Portanto, pode consultar todos os funcionários
+                // registados no SUPAI-MP.
                 //
-                // Consideramos somente lotações activas.
-                //
-                // --------------------------------------------------------
-
-                var funcionariosAutorizados =
-                    await _context.LotacoesFuncionarios
-                        .AsNoTracking()
-                        .Where(l =>
-                            l.Ativo &&
-                            (
-                                (
-                                    l.SeccaoId.HasValue &&
-                                    seccoesAutorizadas.Contains(
-                                        l.SeccaoId.Value)
-                                )
-                                ||
-                                (
-                                    l.UnidadeOperacionalId.HasValue &&
-                                    l.UnidadeOperacional != null &&
-                                    seccoesAutorizadas.Contains(
-                                        l.UnidadeOperacional.SeccaoId)
-                                )
-                            ))
-                        .Select(l => l.FuncionarioId)
-                        .Distinct()
-                        .ToListAsync();
-
-                if (funcionariosAutorizados.Count == 0)
-                {
-                    return Ok(new
-                    {
-                        page = 1,
-                        pageSize,
-
-                        total = 0,
-                        totalPaginas = 0,
-
-                        pagina = 1,
-                        tamanhoPagina = pageSize,
-                        totalRegistros = 0,
-
-                        estatisticas = new
-                        {
-                            totalMasculino = 0,
-                            totalFeminino = 0,
-                            totalAtivos = 0,
-                            totalPorCategoria =
-                                new List<object>()
-                        },
-
-                        funcionarios =
-                            new List<object>()
-                    });
-                }
-
-                // --------------------------------------------------------
-                // APLICAR O ÂMBITO À CONSULTA PRINCIPAL
-                // --------------------------------------------------------
-
-                query = query.Where(f =>
-                    funcionariosAutorizados.Contains(f.Id));
             }
 
             // ============================================================
@@ -1239,8 +1178,8 @@ namespace supai_mp.Controllers
             // CARREGAR FUNCIONÁRIOS
             // ============================================================
             //
-            // Mantemos a estratégia que já estava funcionando:
-            // carregar os dados e realizar ordenação/estatísticas em memória.
+            // Agora a consulta contém todos os funcionários registados,
+            // salvo quando existir filtro por nome.
             //
             // ============================================================
 
