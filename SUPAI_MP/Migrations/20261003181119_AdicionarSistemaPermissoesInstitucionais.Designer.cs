@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using supai_mp.Data;
 
@@ -11,9 +12,11 @@ using supai_mp.Data;
 namespace SUPAI_MP.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20261003181119_AdicionarSistemaPermissoesInstitucionais")]
+    partial class AdicionarSistemaPermissoesInstitucionais
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -937,14 +940,9 @@ namespace SUPAI_MP.Migrations
                         .IsRequired()
                         .HasColumnType("longtext");
 
-                    b.Property<int?>("UnidadeInstitucionalId")
-                        .HasColumnType("int");
-
                     b.HasKey("Id");
 
                     b.HasIndex("FuncionarioId");
-
-                    b.HasIndex("UnidadeInstitucionalId");
 
                     b.ToTable("Usuarios");
                 });
@@ -1250,14 +1248,7 @@ namespace SUPAI_MP.Migrations
                         .HasForeignKey("FuncionarioId")
                         .OnDelete(DeleteBehavior.Restrict);
 
-                    b.HasOne("supai_mp.Models.Institucional.UnidadeInstitucional", "UnidadeInstitucional")
-                        .WithMany()
-                        .HasForeignKey("UnidadeInstitucionalId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
                     b.Navigation("Funcionario");
-
-                    b.Navigation("UnidadeInstitucional");
                 });
 
             modelBuilder.Entity("supai_mp.Models.Funcionario", b =>

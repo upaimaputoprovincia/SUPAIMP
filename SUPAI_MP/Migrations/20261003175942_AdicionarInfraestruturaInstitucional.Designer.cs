@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using supai_mp.Data;
 
@@ -11,9 +12,11 @@ using supai_mp.Data;
 namespace SUPAI_MP.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20261003175942_AdicionarInfraestruturaInstitucional")]
+    partial class AdicionarInfraestruturaInstitucional
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -202,133 +205,6 @@ namespace SUPAI_MP.Migrations
                         .IsUnique();
 
                     b.ToTable("EntidadesInstitucionais");
-
-                    b.HasData(
-                        new
-                        {
-                            Id = 1,
-                            Ativo = true,
-                            Descricao = "Comando Provincial da Polícia da República de Moçambique – Maputo",
-                            Nome = "Comando Provincial da PRM – Maputo",
-                            Sigla = "CPRM-Maputo"
-                        });
-                });
-
-            modelBuilder.Entity("supai_mp.Models.Institucional.PermissaoAcesso", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<bool>("Ativo")
-                        .HasColumnType("tinyint(1)");
-
-                    b.Property<DateTime>("DataConcessao")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<DateTime?>("DataExpiracao")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<string>("Observacao")
-                        .HasMaxLength(300)
-                        .HasColumnType("varchar(300)");
-
-                    b.Property<int>("TipoPermissaoId")
-                        .HasColumnType("int");
-
-                    b.Property<int>("UnidadeInstitucionalId")
-                        .HasColumnType("int");
-
-                    b.Property<int>("UsuarioId")
-                        .HasColumnType("int");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("TipoPermissaoId");
-
-                    b.HasIndex("UnidadeInstitucionalId");
-
-                    b.HasIndex("UsuarioId", "TipoPermissaoId", "UnidadeInstitucionalId")
-                        .IsUnique();
-
-                    b.ToTable("PermissoesAcesso");
-                });
-
-            modelBuilder.Entity("supai_mp.Models.Institucional.TipoPermissao", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<bool>("Ativo")
-                        .HasColumnType("tinyint(1)");
-
-                    b.Property<string>("Codigo")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("varchar(100)");
-
-                    b.Property<string>("Descricao")
-                        .HasMaxLength(300)
-                        .HasColumnType("varchar(300)");
-
-                    b.Property<string>("Nome")
-                        .IsRequired()
-                        .HasMaxLength(150)
-                        .HasColumnType("varchar(150)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Codigo")
-                        .IsUnique();
-
-                    b.ToTable("TiposPermissao");
-
-                    b.HasData(
-                        new
-                        {
-                            Id = 1,
-                            Ativo = true,
-                            Codigo = "CONSULTAR_EFECTIVO",
-                            Descricao = "Permite consultar a informação do efectivo da unidade autorizada.",
-                            Nome = "Consultar Efectivo"
-                        },
-                        new
-                        {
-                            Id = 2,
-                            Ativo = true,
-                            Codigo = "CONSULTAR_POSTOS",
-                            Descricao = "Permite consultar a situação dos postos da unidade autorizada.",
-                            Nome = "Consultar Postos"
-                        },
-                        new
-                        {
-                            Id = 3,
-                            Ativo = true,
-                            Codigo = "CONSULTAR_SEGURANCA",
-                            Descricao = "Permite consultar informação de situação de segurança autorizada.",
-                            Nome = "Consultar Segurança"
-                        },
-                        new
-                        {
-                            Id = 4,
-                            Ativo = true,
-                            Codigo = "CONSULTAR_RELATORIOS",
-                            Descricao = "Permite consultar relatórios disponibilizados à unidade autorizada.",
-                            Nome = "Consultar Relatórios"
-                        },
-                        new
-                        {
-                            Id = 5,
-                            Ativo = true,
-                            Codigo = "CONSULTAR_ESCALAS",
-                            Descricao = "Permite consultar escalas da unidade autorizada.",
-                            Nome = "Consultar Escalas"
-                        });
                 });
 
             modelBuilder.Entity("supai_mp.Models.Institucional.TipoUnidadeInstitucional", b =>
@@ -357,36 +233,6 @@ namespace SUPAI_MP.Migrations
                         .IsUnique();
 
                     b.ToTable("TiposUnidadeInstitucional");
-
-                    b.HasData(
-                        new
-                        {
-                            Id = 1,
-                            Ativo = true,
-                            Descricao = "Unidade institucional correspondente ao Comando Provincial.",
-                            Nome = "Comando Provincial"
-                        },
-                        new
-                        {
-                            Id = 2,
-                            Ativo = true,
-                            Descricao = "Subunidade institucional subordinada ao Comando Provincial.",
-                            Nome = "Subunidade"
-                        },
-                        new
-                        {
-                            Id = 3,
-                            Ativo = true,
-                            Descricao = "Esquadra policial integrada na estrutura institucional.",
-                            Nome = "Esquadra"
-                        },
-                        new
-                        {
-                            Id = 4,
-                            Ativo = true,
-                            Descricao = "Posto policial integrado na estrutura institucional.",
-                            Nome = "Posto"
-                        });
                 });
 
             modelBuilder.Entity("supai_mp.Models.Institucional.UnidadeInstitucional", b =>
@@ -435,31 +281,6 @@ namespace SUPAI_MP.Migrations
                         .IsUnique();
 
                     b.ToTable("UnidadesInstitucionais");
-
-                    b.HasData(
-                        new
-                        {
-                            Id = 1,
-                            Ativo = true,
-                            DataCadastro = new DateTime(2026, 10, 3, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            Descricao = "Comando Provincial da Polícia da República de Moçambique – Maputo.",
-                            EntidadeInstitucionalId = 1,
-                            Nome = "Comando Provincial da PRM – Maputo",
-                            Sigla = "CPRM-Maputo",
-                            TipoUnidadeInstitucionalId = 1
-                        },
-                        new
-                        {
-                            Id = 2,
-                            Ativo = true,
-                            DataCadastro = new DateTime(2026, 10, 3, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            Descricao = "Subunidade de Protecção de Altas Individualidades.",
-                            EntidadeInstitucionalId = 1,
-                            Nome = "SUPAI-MP",
-                            Sigla = "SUPAI-MP",
-                            TipoUnidadeInstitucionalId = 2,
-                            UnidadePaiId = 1
-                        });
                 });
 
             modelBuilder.Entity("supai_mp.Models.Organizacao.Equipa", b =>
@@ -937,14 +758,9 @@ namespace SUPAI_MP.Migrations
                         .IsRequired()
                         .HasColumnType("longtext");
 
-                    b.Property<int?>("UnidadeInstitucionalId")
-                        .HasColumnType("int");
-
                     b.HasKey("Id");
 
                     b.HasIndex("FuncionarioId");
-
-                    b.HasIndex("UnidadeInstitucionalId");
 
                     b.ToTable("Usuarios");
                 });
@@ -968,33 +784,6 @@ namespace SUPAI_MP.Migrations
                         .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("Seccao");
-                });
-
-            modelBuilder.Entity("supai_mp.Models.Institucional.PermissaoAcesso", b =>
-                {
-                    b.HasOne("supai_mp.Models.Institucional.TipoPermissao", "TipoPermissao")
-                        .WithMany("Permissoes")
-                        .HasForeignKey("TipoPermissaoId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("supai_mp.Models.Institucional.UnidadeInstitucional", "UnidadeInstitucional")
-                        .WithMany()
-                        .HasForeignKey("UnidadeInstitucionalId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("supai_mp.Models.Usuario", "Usuario")
-                        .WithMany()
-                        .HasForeignKey("UsuarioId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("TipoPermissao");
-
-                    b.Navigation("UnidadeInstitucional");
-
-                    b.Navigation("Usuario");
                 });
 
             modelBuilder.Entity("supai_mp.Models.Institucional.UnidadeInstitucional", b =>
@@ -1250,14 +1039,7 @@ namespace SUPAI_MP.Migrations
                         .HasForeignKey("FuncionarioId")
                         .OnDelete(DeleteBehavior.Restrict);
 
-                    b.HasOne("supai_mp.Models.Institucional.UnidadeInstitucional", "UnidadeInstitucional")
-                        .WithMany()
-                        .HasForeignKey("UnidadeInstitucionalId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
                     b.Navigation("Funcionario");
-
-                    b.Navigation("UnidadeInstitucional");
                 });
 
             modelBuilder.Entity("supai_mp.Models.Funcionario", b =>
@@ -1268,11 +1050,6 @@ namespace SUPAI_MP.Migrations
             modelBuilder.Entity("supai_mp.Models.Institucional.EntidadeInstitucional", b =>
                 {
                     b.Navigation("Unidades");
-                });
-
-            modelBuilder.Entity("supai_mp.Models.Institucional.TipoPermissao", b =>
-                {
-                    b.Navigation("Permissoes");
                 });
 
             modelBuilder.Entity("supai_mp.Models.Institucional.TipoUnidadeInstitucional", b =>

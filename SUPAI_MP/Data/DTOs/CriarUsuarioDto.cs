@@ -4,6 +4,10 @@ namespace supai_mp.Models.DTOs
 {
     public class CriarUsuarioDto
     {
+        // ============================================================
+        // CREDENCIAIS
+        // ============================================================
+
         [Required(ErrorMessage = "O nome de utilizador é obrigatório.")]
         [StringLength(
             100,
@@ -17,14 +21,36 @@ namespace supai_mp.Models.DTOs
             ErrorMessage = "A senha deve ter pelo menos 6 caracteres.")]
         public string Senha { get; set; } = string.Empty;
 
+        // ============================================================
+        // PERFIL
+        // ============================================================
+
         [Required(ErrorMessage = "O perfil é obrigatório.")]
         public string Perfil { get; set; } = "Funcionario";
 
-        [Required(ErrorMessage = "O funcionário é obrigatório.")]
-        [Range(
-            1,
-            int.MaxValue,
-            ErrorMessage = "Selecione um funcionário válido.")]
-        public int FuncionarioId { get; set; }
+        // ============================================================
+        // FUNCIONÁRIO
+        // ============================================================
+        //
+        // Obrigatório para utilizadores internos.
+        // Nulo para utilizadores institucionais externos.
+        //
+        // ============================================================
+
+        public int? FuncionarioId { get; set; }
+
+        // ============================================================
+        // UNIDADE INSTITUCIONAL
+        // ============================================================
+        //
+        // Utilizado para associar o utilizador à sua unidade
+        // institucional.
+        //
+        // Exemplo:
+        // Comando Provincial da PRM – Maputo
+        //
+        // ============================================================
+
+        public int? UnidadeInstitucionalId { get; set; }
     }
 }

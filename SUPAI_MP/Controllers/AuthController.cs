@@ -5,6 +5,7 @@ using Microsoft.IdentityModel.Tokens;
 using supai_mp.Data;
 using supai_mp.Models;
 using supai_mp.Models.DTOs;
+using supai_mp.Models.Institucional;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
@@ -55,6 +56,7 @@ namespace supai_mp.Controllers
             var usuario =
                 await _context.Usuarios
                     .Include(u => u.Funcionario)
+                    .Include(u => u.UnidadeInstitucional)
                     .FirstOrDefaultAsync(u =>
                         u.NomeUsuario == nomeUsuario);
 
@@ -75,13 +77,25 @@ namespace supai_mp.Controllers
             }
 
             // ---------------------------------------------------------
-            // Utilizador precisa estar associado a funcionário
+            // Validar associação
+            // ---------------------------------------------------------
+            //
+            // O utilizador pode ser:
+            //
+            // 1. Funcionário interno;
+            // 2. Utilizador institucional;
+            // 3. Funcionário associado a uma unidade institucional.
+            //
+            // O único cenário inválido é não possuir nenhuma
+            // associação.
+            //
             // ---------------------------------------------------------
 
-            if (usuario.Funcionario == null)
+            if (usuario.Funcionario == null &&
+                usuario.UnidadeInstitucional == null)
             {
                 return Unauthorized(
-                    "Este utilizador não está associado a um funcionário.");
+                    "Este utilizador não possui uma associação válida.");
             }
 
             // ---------------------------------------------------------
@@ -120,7 +134,27 @@ namespace supai_mp.Controllers
                     usuario.FuncionarioId,
 
                 funcionario =
-                    usuario.Funcionario.NomeCompleto
+                    usuario.Funcionario == null
+                        ? null
+                        : usuario.Funcionario.NomeCompleto,
+
+                nip =
+                    usuario.Funcionario == null
+                        ? null
+                        : usuario.Funcionario.Nip,
+
+                unidadeInstitucionalId =
+                    usuario.UnidadeInstitucionalId,
+
+                unidadeInstitucional =
+                    usuario.UnidadeInstitucional == null
+                        ? null
+                        : usuario.UnidadeInstitucional.Nome,
+
+                tipoUtilizador =
+                    usuario.Funcionario != null
+                        ? "Interno"
+                        : "Institucional"
             });
         }
 
@@ -163,19 +197,11 @@ namespace supai_mp.Controllers
                     "Utilizador não encontrado.");
             }
 
-            // ---------------------------------------------------------
-            // Garantir que a conta continua ativa
-            // ---------------------------------------------------------
-
             if (!usuario.Ativo)
             {
                 return Unauthorized(
                     "Este utilizador está desativado.");
             }
-
-            // ---------------------------------------------------------
-            // Validar senha atual
-            // ---------------------------------------------------------
 
             bool senhaCorreta =
                 BCrypt.Net.BCrypt.Verify(
@@ -188,20 +214,12 @@ namespace supai_mp.Controllers
                     "A senha atual está incorreta.");
             }
 
-            // ---------------------------------------------------------
-            // Confirmar nova senha
-            // ---------------------------------------------------------
-
             if (dto.NovaSenha !=
                 dto.ConfirmarNovaSenha)
             {
                 return BadRequest(
                     "A confirmação da nova senha não corresponde.");
             }
-
-            // ---------------------------------------------------------
-            // Impedir reutilização da senha atual
-            // ---------------------------------------------------------
 
             if (BCrypt.Net.BCrypt.Verify(
                     dto.NovaSenha,
@@ -236,6 +254,7 @@ namespace supai_mp.Controllers
             var utilizadores =
                 await _context.Usuarios
                     .Include(u => u.Funcionario)
+                    .Include(u => u.UnidadeInstitucional)
                     .OrderBy(u => u.NomeUsuario)
                     .Select(u => new
                     {
@@ -269,7 +288,30 @@ namespace supai_mp.Controllers
 
                                     nip =
                                         u.Funcionario.Nip
-                                }
+                                },
+
+                        unidadeInstitucionalId =
+                            u.UnidadeInstitucionalId,
+
+                        unidadeInstitucional =
+                            u.UnidadeInstitucional == null
+                                ? null
+                                : new
+                                {
+                                    id =
+                                        u.UnidadeInstitucional.Id,
+
+                                    nome =
+                                        u.UnidadeInstitucional.Nome,
+
+                                    sigla =
+                                        u.UnidadeInstitucional.Sigla
+                                },
+
+                        tipoUtilizador =
+                            u.Funcionario != null
+                                ? "Interno"
+                                : "Institucional"
                     })
                     .ToListAsync();
 
@@ -289,6 +331,7 @@ namespace supai_mp.Controllers
             var usuario =
                 await _context.Usuarios
                     .Include(u => u.Funcionario)
+                    .Include(u => u.UnidadeInstitucional)
                     .FirstOrDefaultAsync(
                         u => u.Id == id);
 
@@ -331,7 +374,30 @@ namespace supai_mp.Controllers
 
                             nip =
                                 usuario.Funcionario.Nip
-                        }
+                        },
+
+                unidadeInstitucionalId =
+                    usuario.UnidadeInstitucionalId,
+
+                unidadeInstitucional =
+                    usuario.UnidadeInstitucional == null
+                        ? null
+                        : new
+                        {
+                            id =
+                                usuario.UnidadeInstitucional.Id,
+
+                            nome =
+                                usuario.UnidadeInstitucional.Nome,
+
+                            sigla =
+                                usuario.UnidadeInstitucional.Sigla
+                        },
+
+                tipoUtilizador =
+                    usuario.Funcionario != null
+                        ? "Interno"
+                        : "Institucional"
             });
         }
 
@@ -400,34 +466,74 @@ namespace supai_mp.Controllers
             }
 
             // ---------------------------------------------------------
-            // Validar funcionário
+            // Validar associações
             // ---------------------------------------------------------
 
-            var funcionario =
-                await _context.Funcionarios
-                    .FirstOrDefaultAsync(
-                        f => f.Id == dto.FuncionarioId);
-
-            if (funcionario == null)
+            if (!dto.FuncionarioId.HasValue &&
+                !dto.UnidadeInstitucionalId.HasValue)
             {
-                return NotFound(
-                    "Funcionário não encontrado.");
+                return BadRequest(
+                    "O utilizador deve estar associado a um funcionário ou a uma unidade institucional.");
             }
 
             // ---------------------------------------------------------
-            // Verificar se funcionário já possui acesso
+            // Validar funcionário
             // ---------------------------------------------------------
 
-            bool funcionarioJaPossuiUsuario =
-                await _context.Usuarios
-                    .AnyAsync(u =>
-                        u.FuncionarioId ==
-                        funcionario.Id);
+            Funcionario? funcionario = null;
 
-            if (funcionarioJaPossuiUsuario)
+            if (dto.FuncionarioId.HasValue)
             {
-                return Conflict(
-                    "Este funcionário já possui um utilizador associado.");
+                funcionario =
+                    await _context.Funcionarios
+                        .FirstOrDefaultAsync(
+                            f => f.Id == dto.FuncionarioId.Value);
+
+                if (funcionario == null)
+                {
+                    return NotFound(
+                        "Funcionário não encontrado.");
+                }
+
+                bool funcionarioJaPossuiUsuario =
+                    await _context.Usuarios
+                        .AnyAsync(u =>
+                            u.FuncionarioId ==
+                            funcionario.Id);
+
+                if (funcionarioJaPossuiUsuario)
+                {
+                    return Conflict(
+                        "Este funcionário já possui um utilizador associado.");
+                }
+            }
+
+            // ---------------------------------------------------------
+            // Validar unidade institucional
+            // ---------------------------------------------------------
+
+            UnidadeInstitucional? unidadeInstitucional = null;
+
+            if (dto.UnidadeInstitucionalId.HasValue)
+            {
+                unidadeInstitucional =
+                    await _context.UnidadesInstitucionais
+                        .FirstOrDefaultAsync(
+                            u =>
+                                u.Id ==
+                                dto.UnidadeInstitucionalId.Value);
+
+                if (unidadeInstitucional == null)
+                {
+                    return NotFound(
+                        "Unidade institucional não encontrada.");
+                }
+
+                if (!unidadeInstitucional.Ativo)
+                {
+                    return BadRequest(
+                        "A unidade institucional selecionada está desativada.");
+                }
             }
 
             // ---------------------------------------------------------
@@ -448,7 +554,10 @@ namespace supai_mp.Controllers
                         perfil,
 
                     FuncionarioId =
-                        funcionario.Id,
+                        dto.FuncionarioId,
+
+                    UnidadeInstitucionalId =
+                        dto.UnidadeInstitucionalId,
 
                     Ativo =
                         true,
@@ -485,10 +594,20 @@ namespace supai_mp.Controllers
                         usuario.Ativo,
 
                     funcionarioId =
-                        funcionario.Id,
+                        usuario.FuncionarioId,
 
                     funcionario =
-                        funcionario.NomeCompleto
+                        funcionario == null
+                            ? null
+                            : funcionario.NomeCompleto,
+
+                    unidadeInstitucionalId =
+                        usuario.UnidadeInstitucionalId,
+
+                    unidadeInstitucional =
+                        unidadeInstitucional == null
+                            ? null
+                            : unidadeInstitucional.Nome
                 });
         }
 
@@ -561,8 +680,7 @@ namespace supai_mp.Controllers
                 await _context.Usuarios
                     .AnyAsync(u =>
                         u.Id != id &&
-                        u.NomeUsuario ==
-                        nomeUsuario);
+                        u.NomeUsuario == nomeUsuario);
 
             if (nomeExiste)
             {
@@ -571,35 +689,75 @@ namespace supai_mp.Controllers
             }
 
             // ---------------------------------------------------------
-            // Validar funcionário
+            // Validar associações
             // ---------------------------------------------------------
 
-            var funcionario =
-                await _context.Funcionarios
-                    .FirstOrDefaultAsync(
-                        f => f.Id == dto.FuncionarioId);
-
-            if (funcionario == null)
+            if (!dto.FuncionarioId.HasValue &&
+                !dto.UnidadeInstitucionalId.HasValue)
             {
-                return NotFound(
-                    "Funcionário não encontrado.");
+                return BadRequest(
+                    "O utilizador deve estar associado a um funcionário ou a uma unidade institucional.");
             }
 
             // ---------------------------------------------------------
-            // Verificar associação duplicada
+            // Validar funcionário
             // ---------------------------------------------------------
 
-            bool funcionarioJaUtilizado =
-                await _context.Usuarios
-                    .AnyAsync(u =>
-                        u.Id != id &&
-                        u.FuncionarioId ==
-                        funcionario.Id);
+            Funcionario? funcionario = null;
 
-            if (funcionarioJaUtilizado)
+            if (dto.FuncionarioId.HasValue)
             {
-                return Conflict(
-                    "Este funcionário já está associado a outro utilizador.");
+                funcionario =
+                    await _context.Funcionarios
+                        .FirstOrDefaultAsync(
+                            f => f.Id == dto.FuncionarioId.Value);
+
+                if (funcionario == null)
+                {
+                    return NotFound(
+                        "Funcionário não encontrado.");
+                }
+
+                bool funcionarioJaUtilizado =
+                    await _context.Usuarios
+                        .AnyAsync(u =>
+                            u.Id != id &&
+                            u.FuncionarioId ==
+                            funcionario.Id);
+
+                if (funcionarioJaUtilizado)
+                {
+                    return Conflict(
+                        "Este funcionário já está associado a outro utilizador.");
+                }
+            }
+
+            // ---------------------------------------------------------
+            // Validar unidade institucional
+            // ---------------------------------------------------------
+
+            UnidadeInstitucional? unidadeInstitucional = null;
+
+            if (dto.UnidadeInstitucionalId.HasValue)
+            {
+                unidadeInstitucional =
+                    await _context.UnidadesInstitucionais
+                        .FirstOrDefaultAsync(
+                            u =>
+                                u.Id ==
+                                dto.UnidadeInstitucionalId.Value);
+
+                if (unidadeInstitucional == null)
+                {
+                    return NotFound(
+                        "Unidade institucional não encontrada.");
+                }
+
+                if (!unidadeInstitucional.Ativo)
+                {
+                    return BadRequest(
+                        "A unidade institucional selecionada está desativada.");
+                }
             }
 
             // ---------------------------------------------------------
@@ -636,7 +794,10 @@ namespace supai_mp.Controllers
                 perfil;
 
             usuario.FuncionarioId =
-                funcionario.Id;
+                dto.FuncionarioId;
+
+            usuario.UnidadeInstitucionalId =
+                dto.UnidadeInstitucionalId;
 
             await _context.SaveChangesAsync();
 
@@ -658,7 +819,17 @@ namespace supai_mp.Controllers
                     usuario.FuncionarioId,
 
                 funcionario =
-                    funcionario.NomeCompleto,
+                    funcionario == null
+                        ? null
+                        : funcionario.NomeCompleto,
+
+                unidadeInstitucionalId =
+                    usuario.UnidadeInstitucionalId,
+
+                unidadeInstitucional =
+                    unidadeInstitucional == null
+                        ? null
+                        : unidadeInstitucional.Nome,
 
                 ativo =
                     usuario.Ativo
@@ -875,65 +1046,136 @@ namespace supai_mp.Controllers
         // GERAR TOKEN JWT
         // =========================================================
 
-        private string GerarToken(Usuario usuario)
+        private string GerarToken(
+            Usuario usuario)
         {
-            if (usuario.Funcionario == null)
-                throw new InvalidOperationException(
-                    "O utilizador precisa estar associado a um funcionário para gerar o token.");
-
-            if (string.IsNullOrWhiteSpace(usuario.Perfil))
+            if (string.IsNullOrWhiteSpace(
+                    usuario.Perfil))
+            {
                 throw new InvalidOperationException(
                     "O utilizador precisa possuir um perfil.");
+            }
 
-            var jwtKey = _configuration["Jwt:Key"];
-            var issuer = _configuration["Jwt:Issuer"];
-            var audience = _configuration["Jwt:Audience"];
+            var jwtKey =
+                _configuration["Jwt:Key"];
+
+            var issuer =
+                _configuration["Jwt:Issuer"];
+
+            var audience =
+                _configuration["Jwt:Audience"];
 
             if (string.IsNullOrWhiteSpace(jwtKey))
+            {
                 throw new InvalidOperationException(
                     "Jwt:Key não está configurada.");
+            }
 
             if (string.IsNullOrWhiteSpace(issuer))
+            {
                 throw new InvalidOperationException(
                     "Jwt:Issuer não está configurado.");
+            }
 
             if (string.IsNullOrWhiteSpace(audience))
-                throw new InvalidOperationException(
-                    "Jwt:Audience não está configurado.");
-
-            var claims = new[]
             {
-        new Claim(
-            ClaimTypes.NameIdentifier,
-            usuario.Id.ToString()),
+                throw new InvalidOperationException(
+                    "Jwt:Audience não está configurada.");
+            }
 
-        new Claim(
-            ClaimTypes.Name,
-            usuario.NomeUsuario),
+            // ---------------------------------------------------------
+            // Claims base
+            // ---------------------------------------------------------
 
-        new Claim(
-            ClaimTypes.Role,
-            usuario.Perfil),
+            var claims =
+                new List<Claim>
+                {
+                    new Claim(
+                        ClaimTypes.NameIdentifier,
+                        usuario.Id.ToString()),
 
-        new Claim(
-            "Nip",
-            usuario.Funcionario.Nip)
-    };
+                    new Claim(
+                        ClaimTypes.Name,
+                        usuario.NomeUsuario),
 
-            var key = new SymmetricSecurityKey(
-                Encoding.UTF8.GetBytes(jwtKey));
+                    new Claim(
+                        ClaimTypes.Role,
+                        usuario.Perfil)
+                };
 
-            var credentials = new SigningCredentials(
-                key,
-                SecurityAlgorithms.HmacSha256);
+            // ---------------------------------------------------------
+            // NIP
+            //
+            // Só existe para utilizadores associados a funcionário.
+            // ---------------------------------------------------------
 
-            var token = new JwtSecurityToken(
-                issuer: issuer,
-                audience: audience,
-                claims: claims,
-                expires: DateTime.UtcNow.AddHours(8),
-                signingCredentials: credentials
-            );
+            if (usuario.Funcionario != null &&
+                !string.IsNullOrWhiteSpace(
+                    usuario.Funcionario.Nip))
+            {
+                claims.Add(
+                    new Claim(
+                        "Nip",
+                        usuario.Funcionario.Nip));
+            }
+
+            // ---------------------------------------------------------
+            // Unidade institucional
+            // ---------------------------------------------------------
+
+            if (usuario.UnidadeInstitucionalId.HasValue)
+            {
+                claims.Add(
+                    new Claim(
+                        "UnidadeInstitucionalId",
+                        usuario.UnidadeInstitucionalId.Value.ToString()));
+            }
+
+            // ---------------------------------------------------------
+            // Tipo de utilizador
+            // ---------------------------------------------------------
+
+            if (usuario.Funcionario != null)
+            {
+                claims.Add(
+                    new Claim(
+                        "TipoUtilizador",
+                        "Interno"));
+            }
+            else
+            {
+                claims.Add(
+                    new Claim(
+                        "TipoUtilizador",
+                        "Institucional"));
+            }
+
+            // ---------------------------------------------------------
+            // Criar chave
+            // ---------------------------------------------------------
+
+            var key =
+                new SymmetricSecurityKey(
+                    Encoding.UTF8.GetBytes(jwtKey));
+
+            var credentials =
+                new SigningCredentials(
+                    key,
+                    SecurityAlgorithms.HmacSha256);
+
+            // ---------------------------------------------------------
+            // Criar token
+            // ---------------------------------------------------------
+
+            var token =
+                new JwtSecurityToken(
+                    issuer: issuer,
+                    audience: audience,
+                    claims: claims,
+                    expires:
+                        DateTime.UtcNow.AddHours(8),
+                    signingCredentials:
+                        credentials);
 
             return new JwtSecurityTokenHandler()
                 .WriteToken(token);
@@ -942,14 +1184,6 @@ namespace supai_mp.Controllers
         // =========================================================
         // CRIAR / RECUPERAR ADMINISTRADOR INICIAL
         // ADMINISTRADOR
-        // =========================================================
-        //
-        // Este endpoint deixou de ser público.
-        //
-        // Como a gestão normal de utilizadores já está implementada,
-        // não devemos deixar um endpoint anónimo capaz de criar ou
-        // reativar um administrador.
-        //
         // =========================================================
 
         [Authorize(Roles = PerfisUsuario.Administrador)]

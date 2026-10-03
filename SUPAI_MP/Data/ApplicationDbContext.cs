@@ -1,6 +1,8 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using supai_mp.Models;
+using supai_mp.Models.Institucional;
 using supai_mp.Models.Organizacao;
+
 
 namespace supai_mp.Data
 {
@@ -27,6 +29,16 @@ namespace supai_mp.Data
         public DbSet<Escala> Escalas { get; set; }
         public DbSet<UnidadeOperacional> UnidadesOperacionais { get; set; }
         public DbSet<GrupoEscala> GruposEscala { get; set; }
+
+        public DbSet<EntidadeInstitucional> EntidadesInstitucionais { get; set; }
+
+        public DbSet<UnidadeInstitucional> UnidadesInstitucionais { get; set; }
+
+        public DbSet<TipoUnidadeInstitucional> TiposUnidadeInstitucional { get; set; }
+
+        public DbSet<TipoPermissao> TiposPermissao { get; set; }
+
+        public DbSet<PermissaoAcesso> PermissoesAcesso { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -378,6 +390,327 @@ namespace supai_mp.Data
             .WithMany(p => p.UnidadesInternas)
             .HasForeignKey(u => u.PostoId)
             .OnDelete(DeleteBehavior.Restrict);
+
+            // ============================================================
+            // USUARIO -> UNIDADE INSTITUCIONAL
+            // ============================================================
+
+            modelBuilder.Entity<Usuario>()
+                .HasOne(u => u.UnidadeInstitucional)
+                .WithMany()
+                .HasForeignKey(u => u.UnidadeInstitucionalId)
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // ============================================================
+            // INFRAESTRUTURA INSTITUCIONAL
+            // ============================================================
+
+            // ------------------------------------------------------------
+            // ENTIDADE INSTITUCIONAL -> UNIDADES INSTITUCIONAIS
+            // ------------------------------------------------------------
+
+            modelBuilder.Entity<UnidadeInstitucional>()
+                .HasOne(u => u.EntidadeInstitucional)
+                .WithMany(e => e.Unidades)
+                .HasForeignKey(u => u.EntidadeInstitucionalId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // ------------------------------------------------------------
+            // TIPO DE UNIDADE INSTITUCIONAL -> UNIDADES
+            // ------------------------------------------------------------
+
+            modelBuilder.Entity<UnidadeInstitucional>()
+                .HasOne(u => u.TipoUnidadeInstitucional)
+                .WithMany(t => t.Unidades)
+                .HasForeignKey(u => u.TipoUnidadeInstitucionalId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // ------------------------------------------------------------
+            // UNIDADE INSTITUCIONAL -> UNIDADE PAI
+            // ------------------------------------------------------------
+
+            modelBuilder.Entity<UnidadeInstitucional>()
+                .HasOne(u => u.UnidadePai)
+                .WithMany(u => u.UnidadesFilhas)
+                .HasForeignKey(u => u.UnidadePaiId)
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // ------------------------------------------------------------
+            // CONFIGURAÇÃO DOS CAMPOS
+            // ------------------------------------------------------------
+
+            modelBuilder.Entity<EntidadeInstitucional>()
+                .Property(e => e.Nome)
+                .HasMaxLength(200)
+                .IsRequired();
+
+            modelBuilder.Entity<EntidadeInstitucional>()
+                .Property(e => e.Sigla)
+                .HasMaxLength(50);
+
+            modelBuilder.Entity<EntidadeInstitucional>()
+                .Property(e => e.Descricao)
+                .HasMaxLength(300);
+
+            modelBuilder.Entity<TipoUnidadeInstitucional>()
+                .Property(t => t.Nome)
+                .HasMaxLength(100)
+                .IsRequired();
+
+            modelBuilder.Entity<TipoUnidadeInstitucional>()
+                .Property(t => t.Descricao)
+                .HasMaxLength(300);
+
+            modelBuilder.Entity<UnidadeInstitucional>()
+                .Property(u => u.Nome)
+                .HasMaxLength(200)
+                .IsRequired();
+
+            modelBuilder.Entity<UnidadeInstitucional>()
+                .Property(u => u.Sigla)
+                .HasMaxLength(50);
+
+            modelBuilder.Entity<UnidadeInstitucional>()
+                .Property(u => u.Descricao)
+                .HasMaxLength(300);
+
+            // ------------------------------------------------------------
+            // ÍNDICES
+            // ------------------------------------------------------------
+
+            modelBuilder.Entity<EntidadeInstitucional>()
+                .HasIndex(e => e.Nome)
+                .IsUnique();
+
+            modelBuilder.Entity<TipoUnidadeInstitucional>()
+                .HasIndex(t => t.Nome)
+                .IsUnique();
+
+            modelBuilder.Entity<UnidadeInstitucional>()
+                .HasIndex(u => new
+                {
+                    u.EntidadeInstitucionalId,
+                    u.Nome
+                })
+                .IsUnique();
+
+            // ============================================================
+            // SEED - INFRAESTRUTURA INSTITUCIONAL INICIAL
+            // ============================================================
+
+            // ------------------------------------------------------------
+            // ENTIDADE INSTITUCIONAL
+            // ------------------------------------------------------------
+
+            modelBuilder.Entity<EntidadeInstitucional>().HasData(
+                new EntidadeInstitucional
+                {
+                    Id = 1,
+                    Nome = "Comando Provincial da PRM – Maputo",
+                    Sigla = "CPRM-Maputo",
+                    Descricao = "Comando Provincial da Polícia da República de Moçambique – Maputo",
+                    Ativo = true
+                }
+            );
+
+            // ------------------------------------------------------------
+            // TIPOS DE UNIDADE INSTITUCIONAL
+            // ------------------------------------------------------------
+
+            modelBuilder.Entity<TipoUnidadeInstitucional>().HasData(
+                new TipoUnidadeInstitucional
+                {
+                    Id = 1,
+                    Nome = "Comando Provincial",
+                    Descricao = "Unidade institucional correspondente ao Comando Provincial.",
+                    Ativo = true
+                },
+
+                new TipoUnidadeInstitucional
+                {
+                    Id = 2,
+                    Nome = "Subunidade",
+                    Descricao = "Subunidade institucional subordinada ao Comando Provincial.",
+                    Ativo = true
+                },
+
+                new TipoUnidadeInstitucional
+                {
+                    Id = 3,
+                    Nome = "Esquadra",
+                    Descricao = "Esquadra policial integrada na estrutura institucional.",
+                    Ativo = true
+                },
+
+                new TipoUnidadeInstitucional
+                {
+                    Id = 4,
+                    Nome = "Posto",
+                    Descricao = "Posto policial integrado na estrutura institucional.",
+                    Ativo = true
+                }
+            );
+
+            // ------------------------------------------------------------
+            // UNIDADES INSTITUCIONAIS
+            // ------------------------------------------------------------
+
+            // COMANDO PROVINCIAL
+            modelBuilder.Entity<UnidadeInstitucional>().HasData(
+                new UnidadeInstitucional
+                {
+                    Id = 1,
+                    Nome = "Comando Provincial da PRM – Maputo",
+                    Sigla = "CPRM-Maputo",
+                    Descricao = "Comando Provincial da Polícia da República de Moçambique – Maputo.",
+                    TipoUnidadeInstitucionalId = 1,
+                    EntidadeInstitucionalId = 1,
+                    UnidadePaiId = null,
+                    Ativo = true,
+                    DataCadastro = new DateTime(2026, 10, 3)
+                },
+
+                // SUPAI-MP
+                new UnidadeInstitucional
+                {
+                    Id = 2,
+                    Nome = "SUPAI-MP",
+                    Sigla = "SUPAI-MP",
+                    Descricao = "Subunidade de Protecção de Altas Individualidades.",
+                    TipoUnidadeInstitucionalId = 2,
+                    EntidadeInstitucionalId = 1,
+                    UnidadePaiId = 1,
+                    Ativo = true,
+                    DataCadastro = new DateTime(2026, 10, 3)
+                }
+            );
+
+            // ============================================================
+            // PERMISSÕES INSTITUCIONAIS
+            // ============================================================
+
+            // ------------------------------------------------------------
+            // TIPO DE PERMISSÃO -> PERMISSÕES
+            // ------------------------------------------------------------
+
+            modelBuilder.Entity<PermissaoAcesso>()
+                .HasOne(p => p.TipoPermissao)
+                .WithMany(t => t.Permissoes)
+                .HasForeignKey(p => p.TipoPermissaoId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // ------------------------------------------------------------
+            // USUARIO -> PERMISSÕES
+            // ------------------------------------------------------------
+
+            modelBuilder.Entity<PermissaoAcesso>()
+                .HasOne(p => p.Usuario)
+                .WithMany()
+                .HasForeignKey(p => p.UsuarioId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // ------------------------------------------------------------
+            // UNIDADE INSTITUCIONAL -> PERMISSÕES
+            // ------------------------------------------------------------
+
+            modelBuilder.Entity<PermissaoAcesso>()
+                .HasOne(p => p.UnidadeInstitucional)
+                .WithMany()
+                .HasForeignKey(p => p.UnidadeInstitucionalId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // ------------------------------------------------------------
+            // CONFIGURAÇÃO DOS CAMPOS
+            // ------------------------------------------------------------
+
+            modelBuilder.Entity<TipoPermissao>()
+                .Property(t => t.Codigo)
+                .HasMaxLength(100)
+                .IsRequired();
+
+            modelBuilder.Entity<TipoPermissao>()
+                .Property(t => t.Nome)
+                .HasMaxLength(150)
+                .IsRequired();
+
+            modelBuilder.Entity<TipoPermissao>()
+                .Property(t => t.Descricao)
+                .HasMaxLength(300);
+
+            // ------------------------------------------------------------
+            // ÍNDICES
+            // ------------------------------------------------------------
+
+            modelBuilder.Entity<TipoPermissao>()
+                .HasIndex(t => t.Codigo)
+                .IsUnique();
+
+            // ------------------------------------------------------------
+            // EVITAR PERMISSÕES DUPLICADAS
+            // ------------------------------------------------------------
+
+            modelBuilder.Entity<PermissaoAcesso>()
+                .HasIndex(p => new
+                {
+                    p.UsuarioId,
+                    p.TipoPermissaoId,
+                    p.UnidadeInstitucionalId
+                })
+                .IsUnique();
+
+            // ============================================================
+            // SEED - TIPOS DE PERMISSÃO
+            // ============================================================
+
+            modelBuilder.Entity<TipoPermissao>().HasData(
+
+                new TipoPermissao
+                {
+                    Id = 1,
+                    Codigo = "CONSULTAR_EFECTIVO",
+                    Nome = "Consultar Efectivo",
+                    Descricao = "Permite consultar a informação do efectivo da unidade autorizada.",
+                    Ativo = true
+                },
+
+                new TipoPermissao
+                {
+                    Id = 2,
+                    Codigo = "CONSULTAR_POSTOS",
+                    Nome = "Consultar Postos",
+                    Descricao = "Permite consultar a situação dos postos da unidade autorizada.",
+                    Ativo = true
+                },
+
+                new TipoPermissao
+                {
+                    Id = 3,
+                    Codigo = "CONSULTAR_SEGURANCA",
+                    Nome = "Consultar Segurança",
+                    Descricao = "Permite consultar informação de situação de segurança autorizada.",
+                    Ativo = true
+                },
+
+                new TipoPermissao
+                {
+                    Id = 4,
+                    Codigo = "CONSULTAR_RELATORIOS",
+                    Nome = "Consultar Relatórios",
+                    Descricao = "Permite consultar relatórios disponibilizados à unidade autorizada.",
+                    Ativo = true
+                },
+
+                new TipoPermissao
+                {
+                    Id = 5,
+                    Codigo = "CONSULTAR_ESCALAS",
+                    Nome = "Consultar Escalas",
+                    Descricao = "Permite consultar escalas da unidade autorizada.",
+                    Ativo = true
+                }
+            );
         }
 
 
