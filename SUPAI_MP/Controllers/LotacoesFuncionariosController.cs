@@ -1212,13 +1212,42 @@ private async Task<string?> ValidarPostoAsync(
             }
 
             // --------------------------------------------------------
+            // DETERMINAR SECÇÃO EFECTIVA DA LOTAÇÃO
+            // --------------------------------------------------------
+
+            var seccaoEfetivaId = dto.SeccaoId;
+
+            // Se existir Unidade Operacional,
+            // a secção será determinada pela própria unidade.
+            if (dto.UnidadeOperacionalId.HasValue)
+            {
+                var unidadeLotacao = await _context.UnidadesOperacionais
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(x =>
+                        x.Id == dto.UnidadeOperacionalId.Value &&
+                        x.Ativo);
+
+                if (unidadeLotacao == null)
+                {
+                    return BadRequest(new
+                    {
+                        mensagem =
+                            "A unidade operacional indicada não existe ou está inactiva."
+                    });
+                }
+
+                seccaoEfetivaId = unidadeLotacao.SeccaoId;
+            }
+
+            // --------------------------------------------------------
             // CRIAR
             // --------------------------------------------------------
+
             var novaLotacao = new LotacaoFuncionario
             {
                 FuncionarioId = dto.FuncionarioId,
 
-                SeccaoId = dto.SeccaoId,
+                SeccaoId = seccaoEfetivaId,
 
                 SectorId = dto.SectorId,
 
@@ -1567,7 +1596,7 @@ private async Task<string?> ValidarPostoAsync(
         // POST — TRANSFERIR FUNCIONÁRIO
         // ============================================================
         [HttpPost("funcionario/{funcionarioId:int}/transferir")]
-        [Authorize(Roles = "Administrador,Gestor,TecnicoPO")]
+        [Authorize(Roles = "Administrador,Gestor,Tecnico PO")]
         public async Task<ActionResult<LotacaoFuncionarioRespostaDto>>
             Transferir(
                 int funcionarioId,
@@ -1828,15 +1857,44 @@ private async Task<string?> ValidarPostoAsync(
                 dataTransferencia;
 
             // --------------------------------------------------------
+            // DETERMINAR SECÇÃO EFECTIVA DA NOVA LOTAÇÃO
+            // --------------------------------------------------------
+
+            var seccaoEfetivaId = dto.SeccaoId;
+
+            // Se existir Unidade Operacional,
+            // a secção é determinada pela própria unidade.
+            if (dto.UnidadeOperacionalId.HasValue)
+            {
+                var unidadeLotacao = await _context.UnidadesOperacionais
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(x =>
+                        x.Id == dto.UnidadeOperacionalId.Value &&
+                        x.Ativo);
+
+                if (unidadeLotacao == null)
+                {
+                    return BadRequest(new
+                    {
+                        mensagem =
+                            "A unidade operacional indicada não existe ou está inactiva."
+                    });
+                }
+
+                seccaoEfetivaId = unidadeLotacao.SeccaoId;
+            }
+
+            // --------------------------------------------------------
             // CRIAR NOVA LOTAÇÃO
             // --------------------------------------------------------
+
             var novaLotacao = new LotacaoFuncionario
             {
                 FuncionarioId =
                     funcionarioId,
 
                 SeccaoId =
-                    dto.SeccaoId,
+                    seccaoEfetivaId,
 
                 SectorId =
                     dto.SectorId,
