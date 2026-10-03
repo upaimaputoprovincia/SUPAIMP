@@ -6,8 +6,10 @@ using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using supai_mp.Data;
 using supai_mp.Models;
+using supai_mp.Services;
 using System.Security.Claims;
 using System.Text;
+
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -50,6 +52,9 @@ builder.Services.AddSwaggerGen(options =>
         }
     });
 });
+
+builder.Services.AddScoped<IAutorizacaoInstitucionalService,
+    AutorizacaoInstitucionalService>();
 
 // ============================================================
 // MYSQL + ENTITY FRAMEWORK CORE

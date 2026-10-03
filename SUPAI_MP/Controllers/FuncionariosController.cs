@@ -8,6 +8,7 @@ using supai_mp.Data;
 using supai_mp.DTOs;
 using supai_mp.Models;
 using supai_mp.Models.DTOs;
+using supai_mp.Services;
 using SUPAI_MP.Data.DTOs;
 using System.Security.Claims;
 
@@ -18,10 +19,153 @@ namespace supai_mp.Controllers
     public class FuncionariosController : ControllerBase
     {
         private readonly ApplicationDbContext _context;
+        private readonly IAutorizacaoInstitucionalService _autorizacaoInstitucionalService;
 
-        public FuncionariosController(ApplicationDbContext context)
+        public FuncionariosController(
+            ApplicationDbContext context,
+            IAutorizacaoInstitucionalService autorizacaoInstitucionalService)
         {
             _context = context;
+            _autorizacaoInstitucionalService =
+                autorizacaoInstitucionalService;
+        }
+
+        // ============================================================
+        // OBTER ID DO USUÁRIO AUTENTICADO
+        // ============================================================
+
+        private bool TentarObterUsuarioId(out int usuarioId)
+        {
+            var claimId =
+                User.FindFirstValue(
+                    ClaimTypes.NameIdentifier);
+
+            return int.TryParse(
+                claimId,
+                out usuarioId);
+        }
+
+        // ============================================================
+        // VALIDAR ACESSO INSTITUCIONAL AO EFECTIVO DA SUPAI-MP
+        // ============================================================
+
+        private async Task<IActionResult?> ValidarAcessoConsultaEfectivoAsync()
+        {
+            // ------------------------------------------------------------
+            // IDENTIFICAR USUÁRIO
+            // ------------------------------------------------------------
+
+            if (!TentarObterUsuarioId(out int usuarioId))
+            {
+                return Unauthorized(new
+                {
+                    mensagem =
+                        "Não foi possível identificar o usuário autenticado."
+                });
+            }
+
+            // ------------------------------------------------------------
+            // LOCALIZAR USUÁRIO
+            // ------------------------------------------------------------
+
+            var usuario =
+                await _context.Usuarios
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(
+                        u => u.Id == usuarioId);
+
+            if (usuario == null)
+            {
+                return Unauthorized(new
+                {
+                    mensagem =
+                        "Usuário não encontrado."
+                });
+            }
+
+            if (!usuario.Ativo)
+            {
+                return Unauthorized(new
+                {
+                    mensagem =
+                        "O usuário está inativo."
+                });
+            }
+
+            // ------------------------------------------------------------
+            // ADMINISTRADOR E GESTOR
+            // ------------------------------------------------------------
+            //
+            // Mantemos o funcionamento atual da SUPAI-MP.
+            //
+            // ------------------------------------------------------------
+
+            if (string.Equals(
+                    usuario.Perfil,
+                    PerfisUsuario.Administrador,
+                    StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(
+                    usuario.Perfil,
+                    PerfisUsuario.Gestor,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                return null;
+            }
+
+            // ------------------------------------------------------------
+            // CONSULTOR INTERNO DA SUPAI-MP
+            // ------------------------------------------------------------
+            //
+            // Se possuir funcionário associado e estiver dentro da
+            // estrutura interna, mantém-se o comportamento atual.
+            //
+            // ------------------------------------------------------------
+
+            if (usuario.FuncionarioId.HasValue)
+            {
+                if (string.Equals(
+                        usuario.Perfil,
+                        PerfisUsuario.Supervisor,
+                        StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(
+                        usuario.Perfil,
+                        PerfisUsuario.Consultor,
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    return null;
+                }
+            }
+
+            // ------------------------------------------------------------
+            // CONSULTOR INSTITUCIONAL
+            // ------------------------------------------------------------
+            //
+            // Neste ponto exigimos explicitamente:
+            //
+            // CONSULTAR_EFECTIVO -> SUPAI-MP
+            //
+            // ------------------------------------------------------------
+
+            var autorizado =
+                await _autorizacaoInstitucionalService
+                    .TemPermissaoAsync(
+                        usuarioId,
+                        "CONSULTAR_EFECTIVO",
+                        "SUPAI-MP");
+
+            if (!autorizado)
+            {
+                return StatusCode(
+                    StatusCodes.Status403Forbidden,
+                    new
+                    {
+                        mensagem =
+                            "O usuário não possui permissão para " +
+                            "consultar o efectivo da SUPAI-MP."
+                    });
+            }
+
+            return null;
         }
 
         // ============================================================
@@ -848,19 +992,29 @@ namespace supai_mp.Controllers
         // ============================================================
 
         [Authorize(
-    Roles =
-        PerfisUsuario.Administrador + "," +
-        PerfisUsuario.Gestor + "," +
-        PerfisUsuario.Supervisor + "," +
-        PerfisUsuario.Consultor)]
+     Roles =
+         PerfisUsuario.Administrador + "," +
+         PerfisUsuario.Gestor + "," +
+         PerfisUsuario.Supervisor + "," +
+         PerfisUsuario.Consultor)]
         [HttpGet("paginado")]
         public async Task<IActionResult> GetFuncionariosPaginado(
-            [FromQuery] int page = 1,
-            [FromQuery] int pageSize = 20,
-            [FromQuery] string? nome = null,
-            [FromQuery] int? pagina = null,
-            [FromQuery] int? tamanhoPagina = null)
+     [FromQuery] int page = 1,
+     [FromQuery] int pageSize = 20,
+     [FromQuery] string? nome = null,
+     [FromQuery] int? pagina = null,
+     [FromQuery] int? tamanhoPagina = null)
         {
+            // ============================================================
+            // VALIDAR ACESSO AO EFECTIVO
+            // ============================================================
+
+            var erroAutorizacao =
+                await ValidarAcessoConsultaEfectivoAsync();
+
+            if (erroAutorizacao != null)
+                return erroAutorizacao;
+
             // Compatibilidade com o MVC:
             // /api/Funcionarios/paginado?pagina=1&tamanhoPagina=20
             if (pagina.HasValue)
