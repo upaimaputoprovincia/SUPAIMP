@@ -2058,5 +2058,56 @@ private async Task<string?> ValidarPostoAsync(
                     "Lotação eliminada com sucesso."
             });
         }
+
+        
+        // ============================================================
+        // GET — LOTAÇÕES ACTIVAS DE UMA SECÇÃO
+        // ============================================================
+        [HttpGet("seccao/{seccaoId:int}")]
+        public async Task<ActionResult<IEnumerable<LotacaoFuncionarioRespostaDto>>>
+            GetPorSeccao(int seccaoId)
+                {
+                    var seccaoExiste = await _context.Seccoes
+                        .AnyAsync(x => x.Id == seccaoId);
+
+                    if (!seccaoExiste)
+                    {
+                        return NotFound(new
+                        {
+                            mensagem = "Secção não encontrada."
+                        });
+                    }
+
+                    var lotacoes = await _context.LotacoesFuncionarios
+                        .AsNoTracking()
+                        .Where(x =>
+                            x.SeccaoId == seccaoId &&
+                            x.Ativo)
+                        .Include(x => x.Funcionario)
+                        .Include(x => x.Seccao)
+                        .Include(x => x.Sector)
+                        .Include(x => x.UnidadeOperacional)
+                        .Include(x => x.Equipa)
+                        .Include(x => x.Posto)
+                        .Include(x => x.FuncaoOperacional)
+                        .Include(x => x.TipoTurno)
+                        .OrderBy(x =>
+                            x.UnidadeOperacional != null
+                                ? x.UnidadeOperacional.Nome
+                                : "")
+                        .ThenBy(x =>
+                            x.Posto != null
+                                ? x.Posto.Nome
+                                : "")
+                        .ThenBy(x =>
+                            x.Funcionario != null
+                                ? x.Funcionario.NomeCompleto
+                                : "")
+                        .ToListAsync();
+
+                    return Ok(lotacoes.Select(ParaDto));
+                }
+
+
     }
 }
