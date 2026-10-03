@@ -1154,5 +1154,253 @@ namespace supai_mp.Controllers
 
             return null;
         }
+
+        
+// ============================================================
+// CRIAR POSTOS PADRÃO DA PROTECÇÃO DE OBJECTOS
+// ============================================================
+
+[HttpPost("criar-postos-proteccao-objectos")]
+[Authorize(Roles = "Administrador,Gestor")]
+public async Task<IActionResult> CriarPostosProteccaoObjectos()
+        {
+            const int COMPANHIA_1 = 16;
+            const int COMPANHIA_2 = 17;
+
+            var companhia1 = await _context.UnidadesOperacionais
+                .FirstOrDefaultAsync(u =>
+                    u.Id == COMPANHIA_1 &&
+                    u.SeccaoId == SECCAO_PROTECCAO_OBJECTOS &&
+                    u.Tipo == UnidadeOperacional.TipoUnidadeOperacional.Companhia &&
+                    u.Ativo);
+
+            var companhia2 = await _context.UnidadesOperacionais
+                .FirstOrDefaultAsync(u =>
+                    u.Id == COMPANHIA_2 &&
+                    u.SeccaoId == SECCAO_PROTECCAO_OBJECTOS &&
+                    u.Tipo == UnidadeOperacional.TipoUnidadeOperacional.Companhia &&
+                    u.Ativo);
+
+            if (companhia1 == null || companhia2 == null)
+            {
+                return BadRequest(new
+                {
+                    mensagem = "As 1ª e 2ª Companhias da Protecção de Objectos não foram encontradas."
+                });
+            }
+
+            // ============================================================
+            // POSTOS DA 1ª COMPANHIA
+            // ============================================================
+
+            var postos1 = new[]
+            {
+        new Posto
+        {
+            Codigo = "PO-002",
+            Nome = "Assembleia Provincial da República",
+            SeccaoId = SECCAO_PROTECCAO_OBJECTOS,
+            UnidadeOperacionalId = COMPANHIA_1,
+            Ativo = true
+        },
+
+        new Posto
+        {
+            Codigo = "PO-003",
+            Nome = "Residência Oficial do Governador",
+            SeccaoId = SECCAO_PROTECCAO_OBJECTOS,
+            UnidadeOperacionalId = COMPANHIA_1,
+            Ativo = true
+        },
+
+        new Posto
+        {
+            Codigo = "PO-004",
+            Nome = "Comando da Subunidade SUPAI-MP",
+            SeccaoId = SECCAO_PROTECCAO_OBJECTOS,
+            UnidadeOperacionalId = COMPANHIA_1,
+            Ativo = true
+        },
+
+        new Posto
+        {
+            Codigo = "PO-005",
+            Nome = "Gabinete de Secretário de Estado",
+            SeccaoId = SECCAO_PROTECCAO_OBJECTOS,
+            UnidadeOperacionalId = COMPANHIA_1,
+            Ativo = true
+        },
+
+        new Posto
+        {
+            Codigo = "PO-006",
+            Nome = "Residência do Diretor do Gabinete do Governador",
+            SeccaoId = SECCAO_PROTECCAO_OBJECTOS,
+            UnidadeOperacionalId = COMPANHIA_1,
+            Ativo = true
+        },
+
+        new Posto
+        {
+            Codigo = "PO-007",
+            Nome = "Residência do Protocolar do Governador",
+            SeccaoId = SECCAO_PROTECCAO_OBJECTOS,
+            UnidadeOperacionalId = COMPANHIA_1,
+            Ativo = true
+        },
+
+        new Posto
+        {
+            Codigo = "PO-008",
+            Nome = "Residência Particular do Governador",
+            SeccaoId = SECCAO_PROTECCAO_OBJECTOS,
+            UnidadeOperacionalId = COMPANHIA_1,
+            Ativo = true
+        },
+
+        new Posto
+        {
+            Codigo = "PO-009",
+            Nome = "Residência de Secretário de Estado de Tete",
+            SeccaoId = SECCAO_PROTECCAO_OBJECTOS,
+            UnidadeOperacionalId = COMPANHIA_1,
+            Ativo = true
+        }
+    };
+
+            // ============================================================
+            // POSTOS DA 2ª COMPANHIA
+            // ============================================================
+
+            var postos2 = new[]
+            {
+        new Posto
+        {
+            Codigo = "PO-010",
+            Nome = "Residência do Comandante Geral",
+            SeccaoId = SECCAO_PROTECCAO_OBJECTOS,
+            UnidadeOperacionalId = COMPANHIA_2,
+            Ativo = true
+        },
+
+        new Posto
+        {
+            Codigo = "PO-011",
+            Nome = "Residência do Comandante Provincial",
+            SeccaoId = SECCAO_PROTECCAO_OBJECTOS,
+            UnidadeOperacionalId = COMPANHIA_2,
+            Ativo = true
+        },
+
+        new Posto
+        {
+            Codigo = "PO-012",
+            Nome = "Residência do Ex-Primeiro-Ministro",
+            SeccaoId = SECCAO_PROTECCAO_OBJECTOS,
+            UnidadeOperacionalId = COMPANHIA_2,
+            Ativo = true
+        },
+
+        new Posto
+        {
+            Codigo = "PO-013",
+            Nome = "Residência do Procurador-Geral da República",
+            SeccaoId = SECCAO_PROTECCAO_OBJECTOS,
+            UnidadeOperacionalId = COMPANHIA_2,
+            Ativo = true
+        },
+
+        new Posto
+        {
+            Codigo = "PO-014",
+            Nome = "Residência do Juiz Conselheiro do Conselho Constitucional",
+            SeccaoId = SECCAO_PROTECCAO_OBJECTOS,
+            UnidadeOperacionalId = COMPANHIA_2,
+            Ativo = true
+        },
+
+        new Posto
+        {
+            Codigo = "PO-015",
+            Nome = "Residência do Juiz do Tribunal Administrativo",
+            SeccaoId = SECCAO_PROTECCAO_OBJECTOS,
+            UnidadeOperacionalId = COMPANHIA_2,
+            Ativo = true
+        },
+
+        new Posto
+        {
+            Codigo = "PO-016",
+            Nome = "Residência do Juiz Presidente do Tribunal Aduaneiro",
+            SeccaoId = SECCAO_PROTECCAO_OBJECTOS,
+            UnidadeOperacionalId = COMPANHIA_2,
+            Ativo = true
+        }
+    };
+
+            var todosPostos = postos1
+                .Concat(postos2)
+                .ToList();
+
+            // ============================================================
+            // EVITAR DUPLICAÇÃO
+            // ============================================================
+
+            var codigos = todosPostos
+                .Select(p => p.Codigo)
+                .ToList();
+
+            var existentes = await _context.Postos
+                .Where(p =>
+                    p.SeccaoId == SECCAO_PROTECCAO_OBJECTOS &&
+                    codigos.Contains(p.Codigo))
+                .ToListAsync();
+
+            if (existentes.Any())
+            {
+                return Conflict(new
+                {
+                    mensagem = "Alguns Postos já existem.",
+                    postosExistentes = existentes.Select(p => new
+                    {
+                        p.Id,
+                        p.Codigo,
+                        p.Nome,
+                        p.UnidadeOperacionalId
+                    })
+                });
+            }
+
+            // ============================================================
+            // GRAVAR
+            // ============================================================
+
+            await _context.Postos.AddRangeAsync(todosPostos);
+            await _context.SaveChangesAsync();
+
+            return Ok(new
+            {
+                mensagem = "Postos da Protecção de Objectos criados com sucesso.",
+                total = todosPostos.Count,
+
+                primeiraCompanhia = postos1.Select(p => new
+                {
+                    p.Id,
+                    p.Codigo,
+                    p.Nome,
+                    p.UnidadeOperacionalId
+                }),
+
+                segundaCompanhia = postos2.Select(p => new
+                {
+                    p.Id,
+                    p.Codigo,
+                    p.Nome,
+                    p.UnidadeOperacionalId
+                })
+            });
+        }
+
+
     }
 }
