@@ -291,14 +291,15 @@ app.UseHttpsRedirection();
 // FOTOGRAFIAS
 // ============================================================
 
-// Primeiro verifica se existe uma variável
-// FOTOS_PATH no ambiente.
+// O caminho das fotografias deve ser configurado através
+// da variável de ambiente FOTOS_PATH.
 //
-// Se não existir, utiliza:
-// /app/wwwroot/fotos
+// PRODUÇÃO (Railway):
+// FOTOS_PATH deve apontar para o ponto de montagem do Volume.
 //
-// No Railway, app.Environment.ContentRootPath
-// normalmente corresponde à raiz da aplicação.
+// DESENVOLVIMENTO LOCAL:
+// Se FOTOS_PATH não existir, utiliza:
+// wwwroot/fotos
 
 var fotosPath =
     Environment.GetEnvironmentVariable("FOTOS_PATH");
@@ -312,17 +313,21 @@ if (string.IsNullOrWhiteSpace(fotosPath))
             "fotos");
 }
 
+// Normaliza o caminho.
+fotosPath =
+    Path.GetFullPath(fotosPath);
+
 // Garante que a pasta existe.
-Directory.CreateDirectory(
+Directory.CreateDirectory(fotosPath);
+
+// Regista no log qual pasta está a ser utilizada.
+app.Logger.LogInformation(
+    "Pasta de fotografias: {FotosPath}",
     fotosPath);
 
-// Disponibiliza:
-//
-// /fotos/nome-do-arquivo.jpg
-//
-// apontando para:
-//
-// fotosPath/nome-do-arquivo.jpg
+// ============================================================
+// SERVIR FOTOGRAFIAS
+// ============================================================
 
 app.UseStaticFiles(
     new StaticFileOptions
@@ -334,7 +339,6 @@ app.UseStaticFiles(
         RequestPath =
             "/fotos"
     });
-
 // ============================================================
 // AUTENTICAÇÃO
 // ============================================================

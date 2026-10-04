@@ -555,8 +555,7 @@ namespace supai_mp.Controllers
                 usuario.Funcionario;
 
             var caminhoFotos =
-                Environment.GetEnvironmentVariable(
-                    "FOTOS_PATH");
+     Environment.GetEnvironmentVariable("FOTOS_PATH");
 
             if (string.IsNullOrWhiteSpace(caminhoFotos))
             {
@@ -566,6 +565,11 @@ namespace supai_mp.Controllers
                         "wwwroot",
                         "fotos");
             }
+
+            caminhoFotos =
+                Path.GetFullPath(caminhoFotos);
+
+            Directory.CreateDirectory(caminhoFotos);
 
             Directory.CreateDirectory(
                 caminhoFotos);
@@ -624,57 +628,6 @@ namespace supai_mp.Controllers
             });
         }
 
-        // ============================================================
-        // GET: api/Funcionarios/testar-fotografia/{nome}
-        // ============================================================
-
-        [AllowAnonymous]
-        [HttpGet("testar-fotografia/{nome}")]
-        public IActionResult TestarFotografia(string nome)
-        {
-            var caminhoFotos =
-                Environment.GetEnvironmentVariable("FOTOS_PATH");
-
-            if (string.IsNullOrWhiteSpace(caminhoFotos))
-            {
-                caminhoFotos =
-                    Path.Combine(
-                        Directory.GetCurrentDirectory(),
-                        "wwwroot",
-                        "fotos");
-            }
-
-            var caminho =
-                Path.Combine(
-                    caminhoFotos,
-                    nome);
-
-            if (!System.IO.File.Exists(caminho))
-            {
-                return NotFound(new
-                {
-                    mensagem = "Ficheiro não encontrado.",
-                    caminho
-                });
-            }
-
-            var extensao =
-                Path.GetExtension(nome)
-                    .ToLowerInvariant();
-
-            var contentType =
-                extensao switch
-                {
-                    ".jpg" => "image/jpeg",
-                    ".jpeg" => "image/jpeg",
-                    ".png" => "image/png",
-                    _ => "application/octet-stream"
-                };
-
-            return PhysicalFile(
-                caminho,
-                contentType);
-        }
 
         // ============================================================
         // PUT: api/Funcionarios/alterar-senha
